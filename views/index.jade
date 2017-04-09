@@ -1,0 +1,41 @@
+extends layout
+
+block content
+  h1= title
+
+  h2 Create a new user
+  form(action="/users/create", method="post")
+    用户名：
+    | &nbsp;
+    input(type="text", name="username")
+    密码：
+    | &nbsp;
+    input(type="text", name="password")
+    input(type="submit")
+
+  h2 Users
+
+  ul
+  each user in users
+    li
+      用户名：
+      = user.username
+      密码：
+      = user.password
+      | &nbsp;
+      | (
+      a(href="/users/" + user.id + "/destroy") Destroy
+      | )
+      ul
+        li
+          | Create a new icon:
+          form(action="/users/" + user.id + "/icons/create", method="post", style="display: inline")
+            input(type="text", name="content")
+            input(type="submit")
+        each icon in user.Icons
+          li
+            = icon.content
+            | &nbsp;
+            | (
+            a(href="/users/" + user.id + "/icons/" + icon.id + "/destroy") Destroy
+            | )
