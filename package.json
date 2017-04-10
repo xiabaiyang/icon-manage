@@ -8,6 +8,7 @@
   "dependencies": {
     "body-parser": "~1.17.1",
     "cookie-parser": "~1.4.3",
+    "corser": "^2.0.1",
     "debug": "~2.6.3",
     "express": "~4.15.2",
     "express-mysql-session": "^1.2.0",
@@ -16,6 +17,7 @@
     "lodash": "^4.17.4",
     "md5": "^2.2.1",
     "morgan": "~1.8.1",
+    "multer": "^1.3.0",
     "mysql": "^2.13.0",
     "request-promise": "^4.2.0",
     "sequelize": "^3.30.4",

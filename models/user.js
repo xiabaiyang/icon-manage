@@ -11,7 +11,7 @@ module.exports = function(sequelize, DataTypes) {
     password: {
         type: DataTypes.STRING,
         allowNull: false
-    }
+    }// 机器码
   }, {
       classMethods: {
         associate: function(models) {
