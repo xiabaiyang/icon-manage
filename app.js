@@ -6,10 +6,14 @@ var bodyParser = require('body-parser');
 var corser = require('corser'); // 解决跨域问题
 var global = require('./config/global.json');
 
+// var env = process.env.NODE_ENV || 'development';
+var env = 'production';
+var sessionPath = path.resolve(__dirname, './config/' + env + '/session.json');
+
 // session
 var session = require('express-session'); // 创建 session 中间件
 var MySQLStore = require('express-mysql-session')(session); // 将 session 存在 mysql 中
-var options = require('./config/session.' + (process.env.NODE_ENV || "development") + '.json'); // 数据库配置信息
+var options = require(sessionPath); // 数据库配置信息
 
 // 路由
 var routes = require('./routes/index');
