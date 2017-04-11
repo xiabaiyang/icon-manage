@@ -9,7 +9,7 @@
   },
   "production": {
     "username": "root",
-    "password": "root",
+    "password": "tmt@database",
     "database": "icon",
     "host": "127.0.0.1",
     "dialect": "mysql"
