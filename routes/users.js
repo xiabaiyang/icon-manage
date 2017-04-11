@@ -20,6 +20,7 @@ var express = require('express');
 var router = express.Router();
 
 var upload = multer({dest: '/tmp/'});
+var SVGO = require('svgo');
 
 router.post('/create', function (req, res) {
     models.User.create({
@@ -64,6 +65,7 @@ router.post('/file_upload', upload.array('image'), function (req, res) {
     var uploadFileNum = req.files.length;
     var des_file = [];
     var fileOriginalName = [];
+    var svgo = new SVGO();
     if (uploadFileNum < 1) {
         res.json({
             "status": 400,
@@ -76,17 +78,18 @@ router.post('/file_upload', upload.array('image'), function (req, res) {
         var count = 0; // 存储文件计数用
         (function (i) {
             fileOriginalName[i] = req.files[i].originalname;
-            fs.readFile(req.files[i].path, 'utf-8', function (err, data) {
+
+            fs.readFile(req.files[i].path, 'utf8', function(err, data) {
                 if (err) {
                     res.json({
                         "status": 500,
                         "msg": '文件保存失败'
                     });
                 }
-                else {
+                svgo.optimize(data, function (result) {
                     models.Icon.create({
                         name: fileOriginalName[i], // SVG 文件名
-                        content: data, // SVG 文件内容
+                        content: result.data, // SVG 文件内容
                         UserId: 1 // 用户id,这个版本默认是 1
                     }).then(function () {
                         // console.log('upload suc');
@@ -101,7 +104,7 @@ router.post('/file_upload', upload.array('image'), function (req, res) {
                         };
                         res.json(response);
                     }
-                }
+                });
             });
         })(i)
     }
