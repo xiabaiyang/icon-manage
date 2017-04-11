@@ -60,8 +60,6 @@ router.get('/:user_id/icons/:task_id/destroy', function (req, res) {
 });
 
 router.post('/file_upload', upload.array('image'), function (req, res) {
-    // console.log('loading...');
-    // console.log(req.files);
     var fileType = req.body.fileType;
     var uploadFileNum = req.files.length;
     var des_file = [];
@@ -74,39 +72,46 @@ router.post('/file_upload', upload.array('image'), function (req, res) {
         return -1;
     }
 
-    for (var i = 0; i < uploadFileNum; i++) {
-        var count = 0; // 存储文件计数用
-        (function (i) {
-            fileOriginalName[i] = req.files[i].originalname;
-            fs.readFile(req.files[i].path, 'utf-8', function (err, data) {
-                if (err) {
-                    res.json({
-                        "status": 500,
-                        "msg": '文件保存失败'
-                    });
-                }
-                else {
-                    models.Icon.create({
-                        name: fileOriginalName[i], // SVG 文件名
-                        content: data, // SVG 文件内容
-                        UserId: 1 // 用户id,这个版本默认是 1
-                    }).then(function () {
-                        // console.log('upload suc');
-                    });
+    models.User.create({
+        username: 'maybexia',
+        password: 'xby'
+    }).then(function () {
+        res.redirect('/');
+    });
 
-                    count++;
-
-                    if (count === uploadFileNum) {
-                        var response = {
-                            "status": 200,
-                            "msg": 'success'
-                        };
-                        res.json(response);
-                    }
-                }
-            });
-        })(i)
-    }
+    // for (var i = 0; i < uploadFileNum; i++) {
+    //     var count = 0; // 存储文件计数用
+    //     (function (i) {
+    //         fileOriginalName[i] = req.files[i].originalname;
+    //         fs.readFile(req.files[i].path, 'utf-8', function (err, data) {
+    //             if (err) {
+    //                 res.json({
+    //                     "status": 500,
+    //                     "msg": '文件保存失败'
+    //                 });
+    //             }
+    //             else {
+    //                 models.Icon.create({
+    //                     name: fileOriginalName[i], // SVG 文件名
+    //                     content: data, // SVG 文件内容
+    //                     UserId: 1 // 用户id,这个版本默认是 1
+    //                 }).then(function () {
+    //                     // console.log('upload suc');
+    //                 });
+    //
+    //                 count++;
+    //
+    //                 if (count === uploadFileNum) {
+    //                     var response = {
+    //                         "status": 200,
+    //                         "msg": 'success'
+    //                     };
+    //                     res.json(response);
+    //                 }
+    //             }
+    //         });
+    //     })(i)
+    // }
 });
 
 router.get('/getFiles', function (req, res, next) {
