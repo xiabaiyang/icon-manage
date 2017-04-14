@@ -119,7 +119,7 @@ router.get('/getFiles', function (req, res, next) {
        for (var item in result) {
            files.push({
                name: result[item].dataValues.name,
-               content: encodeURI(result[item].dataValues.content)
+               content: result[item].dataValues.content
            });
        }
        var response = {
