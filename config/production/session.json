@@ -3,5 +3,5 @@
   "port": 3306,
   "user": "maybexia",
   "password": "xby@ustc",
-  "database": "icon"
+  "database": "user"
 }

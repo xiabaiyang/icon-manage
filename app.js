@@ -12,8 +12,8 @@ var sessionPath = path.resolve(__dirname, './config/' + env + '/session.json');
 
 // session
 var session = require('express-session'); // 创建 session 中间件
-var MySQLStore = require('express-mysql-session')(session); // 将 session 存在 mysql 中
-var options = require(sessionPath); // 数据库配置信息
+// var MySQLStore = require('express-mysql-session')(session); // 将 session 存在 mysql 中
+// var options = require(sessionPath); // 数据库配置信息
 
 // 路由
 var routes = require('./routes/index');
@@ -50,14 +50,19 @@ app.all('*', function (request, response, next) {
     next();
 });
 
-// session 设置 (secret需要自动生成)
-var sessionStore = new MySQLStore(options);
-app.use(session({
-    secret: '1792B4344F7D80C6189E',
-    store: sessionStore,
-    resave: true,
-    saveUninitialized: true
-}));
+// session 设置 (secret需要自动生成) 暂时不用
+// var sessionStore = new MySQLStore(options);
+// var identityKey = 'userName';
+// app.use(session({
+//     name: identityKey,
+//     secret: '1792B4344F7D80C6189E', // 用来对 session id 相关的 cookie 进行签名
+//     store: sessionStore, // 本地存储 session
+//     resave: true, // 是否每次都重新保存会话，建议 false
+//     saveUninitialized: true, // 是否自动保存未初始化的会话，建议 false
+//     cookie: {
+//         maxAge: 10 * 1000  // 有效期，单位是毫秒
+//     }
+// }));
 
 app.use('/', routes);
 app.use('/users', users);

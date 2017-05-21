@@ -22,6 +22,9 @@ var router = express.Router();
 var upload = multer({dest: '/tmp/'});
 var SVGO = require('svgo');
 
+var path = require('path');
+var crypto = require('crypto');
+
 router.post('/create', function (req, res) {
     models.User.create({
         username: req.body.username,
@@ -61,9 +64,8 @@ router.get('/:user_id/icons/:task_id/destroy', function (req, res) {
 });
 
 router.post('/file_upload', upload.array('image'), function (req, res) {
-    var fileType = req.body.fileType;
+    // var fileType = req.body.fileType;
     var uploadFileNum = req.files.length;
-    var des_file = [];
     var fileOriginalName = [];
     var svgo = new SVGO();
     if (uploadFileNum < 1) {
@@ -79,7 +81,7 @@ router.post('/file_upload', upload.array('image'), function (req, res) {
         (function (i) {
             fileOriginalName[i] = req.files[i].originalname;
 
-            fs.readFile(req.files[i].path, 'utf8', function(err, data) {
+            fs.readFile(req.files[i].path, 'utf8', function (err, data) {
                 if (err) {
                     res.json({
                         "status": 500,
@@ -114,21 +116,179 @@ router.get('/getFiles', function (req, res, next) {
     models.Icon.findAll({
         'attributes': ['name', 'content']
     })
-   .then(function (result) {
-       var files = [];
-       for (var item in result) {
-           files.push({
-               name: result[item].dataValues.name,
-               content: result[item].dataValues.content
-           });
-       }
-       var response = {
-           "status": 200,
-           "msg": 'success',
-           "data": files
-       };
-       res.json(response);
-   });
+    .then(function (result) {
+        var files = [];
+        for (var item in result) {
+            files.push({
+                name: result[item].dataValues.name,
+                content: result[item].dataValues.content
+            });
+        }
+        var response = {
+            "status": 200,
+            "msg": 'success',
+            "data": files
+        };
+        res.json(response);
+    });
+});
+
+// 用户注册
+router.post('/register', function (req, res, next) {
+    var params = req.body;
+    var userName = params.userName;
+    var password = params.password;
+    var machineCode = params.machineCode;
+    var sig = params.sig;
+    var privatePem = fs.readFileSync(path.join(__dirname, '..', 'config/production/rsa_private_key.pem'));
+    var publicPem = fs.readFileSync(path.join(__dirname, '..', 'config/production/rsa_public_key.pem'));
+    var privateKey = privatePem.toString(); // 私钥
+    var publicKey = publicPem.toString(); // 公钥
+    //加密
+
+    /*
+     * 添加盐值的 md5 加密
+     * */
+    function hashCrypt(userName, password) {
+        var saltPassword = userName + ':' + password;
+        var md5 = crypto.createHash('md5');
+        return md5.update(saltPassword).digest('hex');
+    }
+
+    /*
+     * 获取随机盐值
+     * */
+    function getRandomSalt() {
+        return Math.random().toString().slice(2, 7);
+    }
+
+    function rsaSign(encryptedPassword, machineCode) {
+        var sign = crypto.createSign('RSA-SHA256'); // 创建签名
+        sign.update(encryptedPassword + machineCode); // 利用签名更新数据
+        return sign.sign(privateKey, 'hex');
+    }
+
+    function rsaVerify(encryptedPassword, sig) {
+        var verify = crypto.createVerify('RSA-SHA256');
+        verify.update(encryptedPassword);
+        return verify.verify(pubkey, sig, 'hex'); // true 为正确
+    }
+
+    /*
+    * 1. 第一次登录时,需要根据 userName 和 password 去更新 machineCode
+    * 2. 除第一次登录时,先利用 sig 解出 userName
+    * 3. 用户更换 machineCode 登录时,需要添加新记录
+    * */
+    if (userName && password && machineCode && (!sig)) {
+        models.User.findAll({
+            where: {
+                userName: userName
+            }
+        }).then(function (result) {
+            if (result.length < 1) { // 用户不存在
+                var response = {
+                    "status": 400,
+                    "msg": '用户不存在'
+                };
+                res.json(response);
+            }
+            else {
+                var encryptedPassword = hashCrypt(userName, password); // 加密的 password
+                var sig = rsaSign(encryptedPassword, machineCode); // 签名
+                for (var item in result) {
+                    if (!result[item].dataValues.encryptedPassword) { // encryptedPassword 为空时
+                        models.User.update({
+                            encryptedPassword: encryptedPassword,
+                            machineCode: machineCode,
+                            sig: sig
+                        }, {
+                            where: {
+                                userName: userName
+                            }
+                        }).then(function () {});
+
+                        var response = {
+                            "status": 200,
+                            "msg": 'success',
+                            "sig": sig
+                        };
+                        res.json(response);
+                    }
+                    else if (encryptedPassword === result[item].dataValues.encryptedPassword){ // encryptedPassword 存在时
+                        var response = {
+                            "status": 200,
+                            "msg": 'success',
+                            "sig": sig
+                        };
+                        res.json(response);
+                    }
+                    else {
+                        var response = {
+                            "status": 400,
+                            "msg": 'fail'
+                        };
+                        res.json(response);
+                    }
+                }
+            }
+        });
+    }
+    else if (machineCode && sig && (!userName) && (!password)) { // 通过 machineCode 和 sig 直接登录
+        models.User.findAll({
+                where: {
+                    machineCode: machineCode
+                }
+            })
+            .then(function (result) {
+                if (rsaSign(result[0].dataValues.encryptedPassword, machineCode) === sig) { // 机器码是唯一的
+                    console.log('合法用户');
+                    var response = {
+                        "status": 200,
+                        "msg": 'success',
+                        "sig": sig
+                    };
+                    res.json(response);
+                }
+                else {
+                    console.log('非法用户');
+                    var response = {
+                        "status": 400,
+                        "msg": 'fail'
+                    };
+                    res.json(response);
+                }
+                // if (result) {
+                // }
+                // else { // 如果该用户不存在,则创建
+                //     models.User.create({
+                //         userName: userName,
+                //         encryptedPassword: '',
+                //         machineCode: '',
+                //         sig: ''
+                //     }).then(function () {
+                //         console.log('register suc');
+                //     });
+                // }
+            });
+    }
+
+    // models.User.create({
+    //     userName: userName,
+    //     encryptedPassword: encryptedPassword,
+    //     machineCode: machineCode,
+    //     sig: sig
+    // }).then(function () {
+    //     console.log('register suc');
+    // });
+});
+
+// 用户登录
+router.post('/login', function (req, res, next) {
+
+});
+
+// 用户登出
+router.get('/logout', function (req, res, next) {
 });
 
 module.exports = router;
