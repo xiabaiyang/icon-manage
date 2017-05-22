@@ -349,8 +349,8 @@ router.post('/register', function (req, res, next) {
 });
 
 // 用户登录
-router.post('/login', function (req, res, next) {
-    var params = req.body;
+router.get('/login', function (req, res, next) {
+    var params = req.query;
     var userName = params.userName;
     var password = params.password;
     var sig = params.sig;
