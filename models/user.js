@@ -5,20 +5,20 @@ module.exports = function (sequelize, DataTypes) {
     var User = sequelize.define('User', {
         userName: {
             type: DataTypes.STRING,
-            allowNull: false
+            allowNull: true
         },
         encryptedPassword: {
             type: DataTypes.STRING,
-            allowNull: false
+            allowNull: true
         },
-        machineCode: {
-            type: DataTypes.STRING,
-            allowNull: false,
-            unique: true
-        },
+        // machineCode: {
+        //     type: DataTypes.STRING,
+        //     allowNull: false,
+        //     unique: true
+        // },
         sig: {
             type: DataTypes.TEXT('long'),
-            allowNull: false
+            allowNull: true
         }
     }, {
         classMethods: {

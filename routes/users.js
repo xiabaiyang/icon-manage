@@ -138,12 +138,12 @@ router.post('/register', function (req, res, next) {
     var params = req.body;
     var userName = params.userName;
     var password = params.password;
-    var machineCode = params.machineCode;
+    // var machineCode = params.machineCode;
     var sig = params.sig;
-    var privatePem = fs.readFileSync(path.join(__dirname, '..', 'config/production/rsa_private_key.pem'));
-    var publicPem = fs.readFileSync(path.join(__dirname, '..', 'config/production/rsa_public_key.pem'));
-    var privateKey = privatePem.toString(); // 私钥
-    var publicKey = publicPem.toString(); // 公钥
+    // var privatePem = fs.readFileSync(path.join(__dirname, '..', 'config/production/rsa_private_key.pem'));
+    // var publicPem = fs.readFileSync(path.join(__dirname, '..', 'config/production/rsa_public_key.pem'));
+    // var privateKey = privatePem.toString(); // 私钥
+    // var publicKey = publicPem.toString(); // 公钥
     //加密
 
     /*
@@ -179,61 +179,72 @@ router.post('/register', function (req, res, next) {
     * 2. 除第一次登录时,先利用 sig 解出 userName
     * 3. 用户更换 machineCode 登录时,需要添加新记录
     * */
-    if (userName && password && machineCode && (!sig)) {
+    if (userName && password && (!sig)) {
         models.User.findAll({
             where: {
                 userName: userName
             }
         }).then(function (result) {
-            if (result.length < 1) { // 用户不存在
+            if (result.length > 0) { // 用户已存在
                 var response = {
                     "status": 400,
-                    "msg": '用户不存在'
+                    "msg": '用户已存在'
                 };
                 res.json(response);
             }
-            else {
+            else { // 创建新用户
                 var encryptedPassword = hashCrypt(userName, password); // 加密的 password
-                var sig = rsaSign(encryptedPassword, machineCode); // 签名
-                for (var item in result) {
-                    if (!result[item].dataValues.encryptedPassword) { // encryptedPassword 为空时
-                        models.User.update({
-                            encryptedPassword: encryptedPassword,
-                            machineCode: machineCode,
-                            sig: sig
-                        }, {
-                            where: {
-                                userName: userName
-                            }
-                        }).then(function () {});
-
-                        var response = {
-                            "status": 200,
-                            "msg": 'success',
-                            "sig": sig
-                        };
-                        res.json(response);
-                    }
-                    else if (encryptedPassword === result[item].dataValues.encryptedPassword){ // encryptedPassword 存在时
-                        var response = {
-                            "status": 200,
-                            "msg": 'success',
-                            "sig": sig
-                        };
-                        res.json(response);
-                    }
-                    else {
-                        var response = {
-                            "status": 400,
-                            "msg": 'fail'
-                        };
-                        res.json(response);
-                    }
-                }
+                models.User.create({
+                    userName: userName,
+                    encryptedPassword: encryptedPassword
+                }).then(function () {
+                    var response = {
+                        "status": 200,
+                        "msg": 'succ'
+                    };
+                    res.json(response);
+                });
+            //     var encryptedPassword = hashCrypt(userName, password); // 加密的 password
+            //     var sig = rsaSign(encryptedPassword, machineCode); // 签名
+            //     for (var item in result) {
+            //         if (!result[item].dataValues.encryptedPassword) { // encryptedPassword 为空时
+            //             models.User.update({
+            //                 encryptedPassword: encryptedPassword,
+            //                 machineCode: machineCode,
+            //                 sig: sig
+            //             }, {
+            //                 where: {
+            //                     userName: userName
+            //                 }
+            //             }).then(function () {});
+            //
+            //             var response = {
+            //                 "status": 200,
+            //                 "msg": 'success',
+            //                 "sig": sig
+            //             };
+            //             res.json(response);
+            //         }
+            //         else if (encryptedPassword === result[item].dataValues.encryptedPassword){ // encryptedPassword 存在时
+            //             var response = {
+            //                 "status": 200,
+            //                 "msg": 'success',
+            //                 "sig": sig
+            //             };
+            //             res.json(response);
+            //         }
+            //         else {
+            //             var response = {
+            //                 "status": 400,
+            //                 "msg": 'fail'
+            //             };
+            //             res.json(response);
+            //         }
+            //     }
             }
         });
     }
-    else if (machineCode && sig && (!userName) && (!password)) { // 通过 machineCode 和 sig 直接登录
+    else if (sig && (!userName) && (!password)) { // 通过 sig 直接登录
         models.User.findAll({
                 where: {
                     machineCode: machineCode
@@ -271,19 +282,57 @@ router.post('/register', function (req, res, next) {
                 // }
             });
     }
-
-    // models.User.create({
-    //     userName: userName,
-    //     encryptedPassword: encryptedPassword,
-    //     machineCode: machineCode,
-    //     sig: sig
-    // }).then(function () {
-    //     console.log('register suc');
-    // });
 });
 
 // 用户登录
 router.post('/login', function (req, res, next) {
+    var params = req.body;
+    var userName = params.userName;
+    var password = params.password;
+    var sig = params.sig;
+
+    /*
+     * 添加盐值的 md5 加密
+     * */
+    function hashCrypt(userName, password) {
+        var saltPassword = userName + ':' + password;
+        var md5 = crypto.createHash('md5');
+        return md5.update(saltPassword).digest('hex');
+    }
+
+    if (userName && password && (!sig)) {
+        models.User.findAll({
+            where: {
+                userName: userName
+            }
+        }).then(function (result) {
+            if (result.length == 0) { // 用户不存在
+                var response = {
+                    "status": 400,
+                    "msg": '用户不存在'
+                };
+                res.json(response);
+            }
+            else { // 用户存在
+                var sig = result[0].dataValues.encryptedPassword;
+                if (hashCrypt(userName, password) == sig) { // 密码正确
+                    var response = {
+                        "status": 200,
+                        "msg": '登录成功',
+                        sig: sig
+                    };
+                    res.json(response);
+                }
+                else { // 密码错误
+                    var response = {
+                        "status": 400,
+                        "msg": '密码错误'
+                    };
+                    res.json(response);
+                }
+            }
+        });
+    }
 
 });
 
