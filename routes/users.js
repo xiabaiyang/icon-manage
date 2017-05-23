@@ -63,7 +63,7 @@ router.get('/:user_id/icons/:task_id/destroy', function (req, res) {
     });
 });
 
-router.post('/single_upload', function (req, res) {
+router.get('/single_upload', function (req, res) {
     var reqParams = req.query;
     var sig = reqParams.sig;
     var svgName = reqParams.name;
@@ -82,7 +82,6 @@ router.post('/single_upload', function (req, res) {
             encryptedPassword: sig
         }
     }).then(function (result) {
-        console.log('result:' + result[0].dataValues.id);
         if (result.length == 0) { // sig 错误
             var response = {
                 "status": 400,
