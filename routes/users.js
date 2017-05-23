@@ -63,8 +63,8 @@ router.get('/:user_id/icons/:task_id/destroy', function (req, res) {
     });
 });
 
-router.get('/single_upload', function (req, res) {
-    var reqParams = req.query;
+router.post('/single_upload', function (req, res) {
+    var reqParams = req.body;
     var sig = reqParams.sig;
     var svgName = reqParams.name;
     var svgContent = decodeURIComponent(reqParams.content);
