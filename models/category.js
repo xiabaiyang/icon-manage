@@ -1,21 +1,16 @@
 "use strict";
 
 module.exports = function (sequelize, DataTypes) {
-    var Icon = sequelize.define("Icon", {
-        name: {
+    var Category = sequelize.define("Category", {
+        categoryName: {
             type: DataTypes.STRING,
-            allowNull: false,
-            unique: false
-        },
-        content: {
-            type: DataTypes.TEXT('long'),
             allowNull: false,
             unique: false
         }
     }, {
         classMethods: {
             associate: function (models) {
-                Icon.belongsTo(models.User, {
+                Category.belongsTo(models.Project, {
                     onDelete: "CASCADE",
                     foreignKey: {
                         allowNull: false
@@ -25,5 +20,5 @@ module.exports = function (sequelize, DataTypes) {
         }
     });
 
-    return Icon;
+    return Category;
 };
