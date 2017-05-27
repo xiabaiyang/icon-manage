@@ -67,7 +67,10 @@ router.post('/single_upload', function (req, res) {
     var reqParams = req.body;
     var sig = reqParams.sig;
     var svgName = reqParams.name;
+    var projectId = reqParams.projectid;
+    var categoryId = reqParams.categoryid;
     var svgContent = decodeURIComponent(reqParams.content);
+
     var svgo = new SVGO();
     if (svgContent == null || svgContent == undefined) {
         res.json({
@@ -95,6 +98,8 @@ router.post('/single_upload', function (req, res) {
                 models.Icon.create({
                     name: svgName,
                     content: result.data,
+                    projectId: projectId,
+                    categoryId: categoryId,
                     UserId: userId
                 }).then(function () {
                     var response = {
@@ -522,6 +527,7 @@ router.post('/addMember', function (req, res, next) {
 router.post('/queryCategory', function (req, res, next) {
     var projectId = req.body.projectId;
     var categoryName = req.body.categoryName;
+
     models.Project.findAll({
         where: {
             id: projectId
@@ -568,42 +574,124 @@ router.post('/queryProject', function (req, res, next) {
         }
         else {
             var userId = result[0].dataValues.id;
-
             models.Project.findAll({
-                UserId: userId
+                where: {
+                    ownerId: userId
+                }
             }).then(function (data) {
-                var list = []; // 返回列表
-                data.forEach(function (value, index, array) {
-                    var projectId = value.dataValues.id;
-                    var projectName = value.dataValues.proName;
 
-                    models.Category.findAll({
-                        ProjectId: projectId
-                    }).then(function (categorys) {
-                        var categoryList = categorys.map(function (categoryItem) {
-                            return {
-                                categoryId: categoryItem.dataValues.id,
-                                categoryName: categoryItem.dataValues.categoryName
+                if (data.length == 0) {
+                    var response = {
+                        "status": 200,
+                        "msg": 'succ',
+                        "list": []
+                    };
+                    res.json(response);
+                }
+                else {
+                    var list = []; // 返回列表
+                    data.forEach(function (value, index, array) {
+                        var projectId = value.dataValues.id;
+                        var projectName = value.dataValues.proName;
+
+                        models.Category.findAll({
+                            ProjectId: projectId
+                        }).then(function (categorys) {
+                            var categoryList = categorys.map(function (categoryItem) {
+                                return {
+                                    categoryId: categoryItem.dataValues.id,
+                                    categoryName: categoryItem.dataValues.categoryName
+                                }
+                            });
+
+                            list.push({
+                                projectId: projectId,
+                                projectName: projectName,
+                                categoryList: categoryList
+                            });
+
+                            if (index == array.length -1) {
+                                var response = {
+                                    "status": 200,
+                                    "msg": 'succ',
+                                    "list": list
+                                };
+                                res.json(response);
                             }
                         });
-
-                        list.push({
-                            projectId: projectId,
-                            projectName: projectName,
-                            categoryList: categoryList
-                        });
-
-                        if (index == array.length -1) {
-                            var response = {
-                                "status": 200,
-                                "msg": 'succ',
-                                "list": list
-                            };
-                            res.json(response);
-                        }
                     });
-                });
+                }
             });
+        }
+    });
+});
+
+// 根据 projectId 查询 icon
+router.post('/queryIconByProId', function (req, res, next) {
+    var projectId = req.body.projectid;
+    // var sig = req.body.sig;
+
+    models.Icon.findAll({
+        where: {
+            projectId: projectId
+        }
+    }).then(function (result) {
+        if (result.length == 0) {
+            var response = {
+                "status": 400,
+                "msg": '该项目暂无图标'
+            };
+            res.json(response);
+        }
+        else {
+            var iconList = [];
+            for (var item in result) {
+                iconList.push({
+                    name: result[item].dataValues.name,
+                    content: result[item].dataValues.content
+                });
+            }
+            var response = {
+                "status": 200,
+                "msg": 'succ',
+                "list": iconList
+            };
+            res.json(response);
+        }
+    });
+});
+
+// 根据 categoryId 查询 icon
+router.post('/queryIconByCateId', function (req, res, next) {
+    var categoryId = req.body.categoryid;
+    // var sig = req.body.sig;
+
+    models.Icon.findAll({
+        where: {
+            categoryId: categoryId
+        }
+    }).then(function (result) {
+        if (result.length == 0) {
+            var response = {
+                "status": 400,
+                "msg": '该分类暂无图标'
+            };
+            res.json(response);
+        }
+        else {
+            var iconList = [];
+            for (var item in result) {
+                iconList.push({
+                    name: result[item].dataValues.name,
+                    content: result[item].dataValues.content
+                });
+            }
+            var response = {
+                "status": 200,
+                "msg": 'succ',
+                "list": iconList
+            };
+            res.json(response);
         }
     });
 });

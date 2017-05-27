@@ -11,6 +11,16 @@ module.exports = function (sequelize, DataTypes) {
             type: DataTypes.TEXT('long'),
             allowNull: false,
             unique: false
+        },
+        projectId: {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+            unique: false
+        },
+        categoryId: {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+            unique: false
         }
     }, {
         classMethods: {

@@ -38,8 +38,8 @@ sig   (String)
 
 4.新建类目(post)：http://127.0.0.1:3000/users/createCategory
 参数：
-projectname  (String)
-sig   (String)
+categoryname  (String)
+projectid   (String)
 返回：
 {
     categoryId = 1;
