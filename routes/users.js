@@ -67,7 +67,10 @@ router.post('/single_upload', function (req, res) {
     var reqParams = req.body;
     var sig = reqParams.sig;
     var svgName = reqParams.name;
+    var projectId = reqParams.projectid;
+    var categoryId = reqParams.categoryid;
     var svgContent = decodeURIComponent(reqParams.content);
+
     var svgo = new SVGO();
     if (svgContent == null || svgContent == undefined) {
         res.json({
@@ -95,6 +98,8 @@ router.post('/single_upload', function (req, res) {
                 models.Icon.create({
                     name: svgName,
                     content: result.data,
+                    projectId: projectId,
+                    categoryId: categoryId,
                     UserId: userId
                 }).then(function () {
                     var response = {
@@ -199,7 +204,7 @@ router.get('/getFiles', function (req, res, next) {
 // 用户注册
 router.post('/register', function (req, res, next) {
     var params = req.body;
-    var userName = params.userName;
+    var userName = params.username;
     var password = params.password;
     // var machineCode = params.machineCode;
     var sig = params.sig;
@@ -348,9 +353,9 @@ router.post('/register', function (req, res, next) {
 });
 
 // 用户登录
-router.get('/login', function (req, res, next) {
-    var params = req.query;
-    var userName = params.userName;
+router.post('/login', function (req, res, next) {
+    var params = req.body;
+    var userName = params.username;
     var password = params.password;
     var sig = params.sig;
 
@@ -400,7 +405,296 @@ router.get('/login', function (req, res, next) {
 });
 
 // 用户登出
-router.get('/logout', function (req, res, next) {
+// router.get('/logout', function (req, res, next) {
+// });
+
+
+// 新建项目
+router.post('/createProject', function (req, res, next) {
+    var sig = req.body.sig;
+    var proName = req.body.projectname;
+    models.User.findAll({
+        where: {
+            encryptedPassword: sig
+        }
+    }).then(function (result) {
+        if (result.length == 0) {
+            var response = {
+                "status": 400,
+                "msg": '用户不存在'
+            };
+            res.json(response);
+        }
+        else {
+            models.Project.create({
+                proName: proName,
+                ownerId: result[0].dataValues.id,
+                ownerName: result[0].dataValues.userName
+            }).then(function (data) {
+                var response = {
+                    "status": 200,
+                    "msg": 'succ',
+                    "projectId": data.dataValues.id
+                };
+                res.json(response);
+            });
+        }
+    });
 });
+
+// 新建分类
+router.post('/createCategory', function (req, res, next) {
+    var projectId = req.body.projectid;
+    var categoryName = req.body.categoryname;
+    models.Project.findAll({
+        where: {
+            id: projectId
+        }
+    }).then(function (result) {
+        if (result.length == 0) {
+            var response = {
+                "status": 400,
+                "msg": '项目不存在'
+            };
+            res.json(response);
+        }
+        else {
+            var projectId = result[0].dataValues.id;
+            models.Category.create({
+                categoryName: categoryName,
+                ProjectId: projectId
+            }).then(function (data) {
+                var response = {
+                    "status": 200,
+                    "msg": 'succ',
+                    "categoryId": data.dataValues.id
+                };
+                res.json(response);
+            });
+        }
+    });
+});
+
+// 项目添加成员
+router.post('/addMember', function (req, res, next) {
+    var projectId = req.body.project;
+    var memberSig = req.body.sig; // 被添加人的标识
+    models.Project.findAll({
+        where: {
+            id: projectId
+        }
+    }).then(function (project) {
+        if (project.length == 0) {
+            var response = {
+                "status": 400,
+                "msg": '项目不存在'
+            };
+            res.json(response);
+        }
+        else {
+            var projectName = project[0].dataValues.proName;
+            models.User.findAll({
+                where: {
+                    encryptedPassword: memberSig
+                }
+            }).then(function (user) {
+                if (user.length == 0) {
+                    var response = {
+                        "status": 400,
+                        "msg": '成员不存在'
+                    };
+                    res.json(response);
+                }
+                else {
+                    var userId = user[0].dataValues.id;
+                    models.ProjectMember.create({
+                        ProjectId: projectId,
+                        UserId: userId
+                    }).then(function (result) {
+                        var response = {
+                            "status": 200,
+                            "msg": 'succ'
+                        };
+                        res.json(response);
+                    });
+                }
+            });
+        }
+    });
+});
+
+// 查询分类
+router.post('/queryCategory', function (req, res, next) {
+    var projectId = req.body.projectId;
+    var categoryName = req.body.categoryName;
+
+    models.Project.findAll({
+        where: {
+            id: projectId
+        }
+    }).then(function (result) {
+        if (result.length == 0) {
+            var response = {
+                "status": 400,
+                "msg": '项目不存在'
+            };
+            res.json(response);
+        }
+        else {
+            var projectId = result[0].dataValues.id;
+            models.Category.create({
+                categoryName: categoryName,
+                ProjectId: projectId
+            }).then(function (data) {
+                var response = {
+                    "status": 200,
+                    "msg": 'succ',
+                    "categoryId": data.dataValues.id
+                };
+                res.json(response);
+            });
+        }
+    });
+});
+
+// 查询项目+分类
+router.post('/queryProject', function (req, res, next) {
+    var sig = req.body.sig;
+    models.User.findAll({
+        where: {
+            encryptedPassword: sig
+        }
+    }).then(function (result) {
+        if (result.length == 0) {
+            var response = {
+                "status": 400,
+                "msg": '用户不存在'
+            };
+            res.json(response);
+        }
+        else {
+            var userId = result[0].dataValues.id;
+            models.Project.findAll({
+                where: {
+                    ownerId: userId
+                }
+            }).then(function (data) {
+
+                if (data.length == 0) {
+                    var response = {
+                        "status": 200,
+                        "msg": 'succ',
+                        "list": []
+                    };
+                    res.json(response);
+                }
+                else {
+                    var list = []; // 返回列表
+                    data.forEach(function (value, index, array) {
+                        var projectId = value.dataValues.id;
+                        var projectName = value.dataValues.proName;
+
+                        models.Category.findAll({
+                            ProjectId: projectId
+                        }).then(function (categorys) {
+                            var categoryList = categorys.map(function (categoryItem) {
+                                return {
+                                    categoryId: categoryItem.dataValues.id,
+                                    categoryName: categoryItem.dataValues.categoryName
+                                }
+                            });
+
+                            list.push({
+                                projectId: projectId,
+                                projectName: projectName,
+                                categoryList: categoryList
+                            });
+
+                            if (index == array.length -1) {
+                                var response = {
+                                    "status": 200,
+                                    "msg": 'succ',
+                                    "list": list
+                                };
+                                res.json(response);
+                            }
+                        });
+                    });
+                }
+            });
+        }
+    });
+});
+
+// 根据 projectId 查询 icon
+router.post('/queryIconByProId', function (req, res, next) {
+    var projectId = req.body.projectid;
+    // var sig = req.body.sig;
+
+    models.Icon.findAll({
+        where: {
+            projectId: projectId
+        }
+    }).then(function (result) {
+        if (result.length == 0) {
+            var response = {
+                "status": 400,
+                "msg": '该项目暂无图标'
+            };
+            res.json(response);
+        }
+        else {
+            var iconList = [];
+            for (var item in result) {
+                iconList.push({
+                    name: result[item].dataValues.name,
+                    content: result[item].dataValues.content
+                });
+            }
+            var response = {
+                "status": 200,
+                "msg": 'succ',
+                "list": iconList
+            };
+            res.json(response);
+        }
+    });
+});
+
+// 根据 categoryId 查询 icon
+router.post('/queryIconByCateId', function (req, res, next) {
+    var categoryId = req.body.categoryid;
+    // var sig = req.body.sig;
+
+    models.Icon.findAll({
+        where: {
+            categoryId: categoryId
+        }
+    }).then(function (result) {
+        if (result.length == 0) {
+            var response = {
+                "status": 400,
+                "msg": '该分类暂无图标'
+            };
+            res.json(response);
+        }
+        else {
+            var iconList = [];
+            for (var item in result) {
+                iconList.push({
+                    name: result[item].dataValues.name,
+                    content: result[item].dataValues.content
+                });
+            }
+            var response = {
+                "status": 200,
+                "msg": 'succ',
+                "list": iconList
+            };
+            res.json(response);
+        }
+    });
+});
+
 
 module.exports = router;
