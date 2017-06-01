@@ -698,5 +698,43 @@ router.post('/queryIconByCateId', function (req, res, next) {
     });
 });
 
+// 根据 sig 查询 icon
+router.post('/queryIconBySig', function (req, res, next) {
+    models.User.findAll({
+        where: {
+            encryptedPassword: req.body.sig
+        }
+    }).then(function(result) {
+        if (result.length == 0) {
+            var response = {
+                "status": 400,
+                "msg": '用户不存在'
+            };
+            res.json(response);
+        }
+        else {
+            models.Icon.findAll({
+                where: {
+                    UserId: result[0].dataValues.id
+                }
+            }).then(function(icons) {
+                var iconList = [];
+                for (var item in icons) {
+                    iconList.push({
+                        name: icons[item].dataValues.name,
+                        content: icons[item].dataValues.content
+                    });
+                }
+                var response = {
+                    "status": 200,
+                    "msg": 'succ',
+                    "list": iconList
+                };
+                res.json(response);
+            });
+        }
+    });
+});
+
 
 module.exports = router;
