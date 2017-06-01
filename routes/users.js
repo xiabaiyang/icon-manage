@@ -595,7 +595,9 @@ router.post('/queryProject', function (req, res, next) {
                         var projectName = value.dataValues.proName;
 
                         models.Category.findAll({
-                            ProjectId: projectId
+                            where: {
+                                ProjectId: projectId
+                            }
                         }).then(function (categorys) {
                             var categoryList = categorys.map(function (categoryItem) {
                                 return {
@@ -638,7 +640,7 @@ router.post('/queryIconByProId', function (req, res, next) {
     }).then(function (result) {
         if (result.length == 0) {
             var response = {
-                "status": 400,
+                "status": 200,
                 "msg": '该项目暂无图标'
             };
             res.json(response);
@@ -673,7 +675,7 @@ router.post('/queryIconByCateId', function (req, res, next) {
     }).then(function (result) {
         if (result.length == 0) {
             var response = {
-                "status": 400,
+                "status": 200,
                 "msg": '该分类暂无图标'
             };
             res.json(response);
