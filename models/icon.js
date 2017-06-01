@@ -21,6 +21,21 @@ module.exports = function (sequelize, DataTypes) {
             type: DataTypes.INTEGER,
             allowNull: false,
             unique: false
+        },
+        remarks: {
+            type: DataTypes.TEXT('long'),
+            allowNull: true,
+            unique: false
+        },
+        version: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+            unique: false
+        },
+        experienceVersion: {
+            type: DataTypes.BOOLEAN,
+            allowNull: true,
+            unique: false
         }
     }, {
         classMethods: {

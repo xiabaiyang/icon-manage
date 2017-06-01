@@ -67,8 +67,9 @@ router.post('/single_upload', function (req, res) {
     var reqParams = req.body;
     var sig = reqParams.sig;
     var svgName = reqParams.name;
-    var projectId = reqParams.projectid;
     var categoryId = reqParams.categoryid;
+    var projectId = reqParams.projectid;
+    var remarks = reqParams.remarks;
     var svgContent = decodeURIComponent(reqParams.content);
 
     var svgo = new SVGO();
@@ -100,7 +101,10 @@ router.post('/single_upload', function (req, res) {
                     content: result.data,
                     projectId: projectId,
                     categoryId: categoryId,
-                    UserId: userId
+                    UserId: userId,
+                    remarks: remarks,
+                    version: 1, // todo
+                    experienceVersion: false
                 }).then(function () {
                     var response = {
                         "status": 200,
@@ -115,7 +119,6 @@ router.post('/single_upload', function (req, res) {
 
 router.post('/batch_upload', upload.array('image'), function (req, res) {
     var sig = req.query.sig;
-    console.log('sig:' + sig);
     var uploadFileNum = req.files.length;
     var fileOriginalName = [];
     var svgo = new SVGO();
@@ -132,7 +135,7 @@ router.post('/batch_upload', upload.array('image'), function (req, res) {
             encryptedPassword: sig
         }
     }).then(function (result) {
-        console.log('查询 sig...' + result);
+        console.log('查询结果...' + result);
         if (result.length == 0) { // sig 错误
             var response = {
                 "status": 400,
@@ -158,7 +161,10 @@ router.post('/batch_upload', upload.array('image'), function (req, res) {
                             models.Icon.create({
                                 name: fileOriginalName[i], // SVG 文件名
                                 content: result.data, // SVG 文件内容
-                                UserId: userId
+                                projectId: 0, // 0 表示图标是预览版本的项目 ID
+                                categoryId: 0, // 0 表示图标是预览版本的分类 ID
+                                UserId: userId,
+                                experienceVersion: true
                             }).then(function () {
                                 // console.log('upload suc');
                             });
@@ -180,9 +186,12 @@ router.post('/batch_upload', upload.array('image'), function (req, res) {
     });
 });
 
-router.get('/getFiles', function (req, res, next) {
+router.post('/getFiles', function (req, res, next) {
     models.Icon.findAll({
-        'attributes': ['name', 'content']
+        attributes: ['name', 'content'],
+        where: {
+            experienceVersion: true
+        }
     })
     .then(function (result) {
         var files = [];
@@ -635,7 +644,8 @@ router.post('/queryIconByProId', function (req, res, next) {
 
     models.Icon.findAll({
         where: {
-            projectId: projectId
+            projectId: projectId,
+            experienceVersion: false
         }
     }).then(function (result) {
         if (result.length == 0) {
@@ -670,7 +680,8 @@ router.post('/queryIconByCateId', function (req, res, next) {
 
     models.Icon.findAll({
         where: {
-            categoryId: categoryId
+            categoryId: categoryId,
+            experienceVersion: false
         }
     }).then(function (result) {
         if (result.length == 0) {
@@ -715,7 +726,8 @@ router.post('/queryIconBySig', function (req, res, next) {
         else {
             models.Icon.findAll({
                 where: {
-                    UserId: result[0].dataValues.id
+                    UserId: result[0].dataValues.id,
+                    experienceVersion: false
                 }
             }).then(function(icons) {
                 var iconList = [];
@@ -730,7 +742,7 @@ router.post('/queryIconBySig', function (req, res, next) {
                     "msg": 'succ',
                     "list": iconList
                 };
-                res.json(response);
+                res.json(response);  
             });
         }
     });
