@@ -715,14 +715,14 @@ router.post('/queryIconByProId', function (req, res, next) {
 
 
     // 相同 name 的图标返回当前 version 最大的那个
-
     models.Icon.findAll({
+        attributes: ['name', 'content', [sequelize.fn('MAX', sequelize.col('version')), 'curVersion']],
+        group: 'name',
         where: {
             projectId: projectId,
             experienceVersion: false
         }
     }).then(function (result) {
-        console.log("result:" + result);
         if (result.length == 0) {
             var response = {
                 "status": 200,
@@ -733,6 +733,7 @@ router.post('/queryIconByProId', function (req, res, next) {
         else {
             var iconList = [];
             for (var item in result) {
+                console.log("result:" + result[item].dataValues.curVersion);
                 iconList.push({
                     name: result[item].dataValues.name,
                     content: result[item].dataValues.content
