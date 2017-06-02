@@ -3,7 +3,8 @@ var path = require('path');
 var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
-var corser = require('corser'); // 解决跨域问题
+// var corser = require('corser'); // 解决跨域问题
+var cors = require('cors');
 var global = require('./config/global.json');
 
 // var env = process.env.NODE_ENV || 'development';
@@ -38,17 +39,19 @@ app.use(cookieParser());
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// CORS 解决跨域
-app.use(corser.create({
-    methods: corser.simpleMethods.concat(["PUT"]),
-    requestHeaders: corser.simpleRequestHeaders.concat(["X-Requested-With"])
-}));
-app.all('*', function (request, response, next) {
-    response.header('Access-Control-Allow-Headers', 'Content-Type,X-Requested-With,Authorization,Access-Control-Allow-Origin');
-    response.header('Access-Control-Allow-Methods', 'POST,GET,DELETE');
-    response.header('Access-Control-Allow-Origin', '*');
-    next();
-});
+app.use(cors()); // CORS 解决跨域
+
+// app.use(corser.create({
+//     methods: corser.simpleMethods.concat(["PUT"]),
+//     requestHeaders: corser.simpleRequestHeaders.concat(["X-Requested-With"])
+// }));
+// app.all('*', function (request, response, next) {
+// 	response.header('Access-Control-Allow-Origin', '*');
+//     response.header('Access-Control-Allow-Headers', 'Content-Type,X-Requested-With,Authorization,Access-Control-Allow-Origin');
+//     response.header('Access-Control-Allow-Methods', 'PUT,POST,GET,DELETE,OPTIONS');
+//     response.header("Content-Type", "application/json;charset=utf-8");
+//     next();
+// });
 
 // session 设置 (secret需要自动生成) 暂时不用
 // var sessionStore = new MySQLStore(options);
