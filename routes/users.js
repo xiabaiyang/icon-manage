@@ -17,6 +17,7 @@ var fs = require("fs");
 var multer = require('multer');
 var models = require('../models');
 var express = require('express');
+var sequelize = require('sequelize');
 var router = express.Router();
 
 var upload = multer({dest: '/tmp/'});
@@ -70,6 +71,7 @@ router.post('/single_upload', function (req, res) {
     var categoryId = reqParams.categoryid;
     var projectId = reqParams.projectid;
     var remarks = reqParams.remarks;
+    var version = 1; // 默认是 1
     var svgContent = decodeURIComponent(reqParams.content);
 
     var svgo = new SVGO();
@@ -95,23 +97,62 @@ router.post('/single_upload', function (req, res) {
         }
         else {
             var userId = result[0].dataValues.id;
-            svgo.optimize(svgContent, function (result) {
-                models.Icon.create({
-                    name: svgName,
-                    content: result.data,
-                    projectId: projectId,
-                    categoryId: categoryId,
+
+            // 确定上传图标是否已经存在
+            models.Icon.findAll({
+                where: {
                     UserId: userId,
-                    remarks: remarks,
-                    version: 1, // todo
-                    experienceVersion: false
-                }).then(function () {
-                    var response = {
-                        "status": 200,
-                        "msg": 'success'
-                    };
-                    res.json(response);
-                });
+                    name: svgName
+                }
+            }).then(function(icons) {
+                // 已经存在，找该图标当前版本号最大的值
+                if (icons.length > 0) {
+                    models.Icon.max('version', {
+                        where: {
+                            UserId: userId,
+                            name: svgName
+                        }
+                    }).then(function(max) {
+                        svgo.optimize(svgContent, function (result) {
+                            models.Icon.create({
+                                name: svgName,
+                                content: result.data,
+                                projectId: projectId,
+                                categoryId: categoryId,
+                                UserId: userId,
+                                remarks: remarks,
+                                version: max + 1, // 在当前版本号基础上加 1
+                                experienceVersion: false
+                            }).then(function () {
+                                var response = {
+                                    "status": 200,
+                                    "msg": 'success'
+                                };
+                                res.json(response);
+                            });
+                        });
+                    });
+                }
+                else { // 新图标
+                    svgo.optimize(svgContent, function (result) {
+                        models.Icon.create({
+                            name: svgName,
+                            content: result.data,
+                            projectId: projectId,
+                            categoryId: categoryId,
+                            UserId: userId,
+                            remarks: remarks,
+                            version: 1, // 初次上传版本号默认为 1
+                            experienceVersion: false
+                        }).then(function () {
+                            var response = {
+                                "status": 200,
+                                "msg": 'success'
+                            };
+                            res.json(response);
+                        });
+                    });
+                }
             });
         }
     });
@@ -377,7 +418,7 @@ router.post('/login', function (req, res, next) {
         return md5.update(saltPassword).digest('hex');
     }
 
-    if (userName && password && (!sig)) {
+    if (userName && password) {
         models.User.findAll({
             where: {
                 userName: userName
@@ -410,7 +451,35 @@ router.post('/login', function (req, res, next) {
             }
         });
     }
-
+    else if(sig) {
+        models.User.findAll({
+            where: {
+                encryptedPassword: sig
+            }
+        }).then(function (result) {
+            if (result.length == 0) { // 用户不存在
+                var response = {
+                    "status": 400,
+                    "msg": '用户不存在'
+                };
+                res.json(response);
+            }
+            else { // 用户存在
+                var response = {
+                    "status": 200,
+                    "msg": '登录成功',
+                    sig: sig
+                };
+                res.json(response);
+            }
+        });
+    }
+    else {
+        res.json({
+            "status": 400,
+            "msg": '参数错误'
+        })
+    }
 });
 
 // 用户登出
@@ -640,7 +709,12 @@ router.post('/queryProject', function (req, res, next) {
 // 根据 projectId 查询 icon
 router.post('/queryIconByProId', function (req, res, next) {
     var projectId = req.body.projectid;
-    // var sig = req.body.sig;
+    var sig = req.body.sig; 
+
+    // sig 验证
+
+
+    // 相同 name 的图标返回当前 version 最大的那个
 
     models.Icon.findAll({
         where: {
@@ -648,6 +722,7 @@ router.post('/queryIconByProId', function (req, res, next) {
             experienceVersion: false
         }
     }).then(function (result) {
+        console.log("result:" + result);
         if (result.length == 0) {
             var response = {
                 "status": 200,
