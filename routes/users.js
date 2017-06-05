@@ -1,18 +1,3 @@
-// var express = require('express');
-// var db = require('../models');
-// var _ = require('lodash');
-// var path = require('path');
-// var config = require('../config/global.json');
-//
-// var router = express.Router();
-//
-// /* GET home page. */
-// router.get('/', function(req, res, next) {
-//   res.render('index', { title: 'icon' });
-// });
-//
-// module.exports = router;
-
 var fs = require("fs");
 var multer = require('multer');
 var models = require('../models');
@@ -71,6 +56,7 @@ router.post('/single_upload', function (req, res) {
     var categoryId = reqParams.categoryid;
     var projectId = reqParams.projectid;
     var remarks = reqParams.remarks;
+    var author = reqParams.author;
     var version = 1; // 默认是 1
     var svgContent = decodeURIComponent(reqParams.content);
 
@@ -89,11 +75,10 @@ router.post('/single_upload', function (req, res) {
         }
     }).then(function (result) {
         if (result.length == 0) { // sig 错误
-            var response = {
+            res.json({
                 "status": 400,
                 "msg": 'sig 错误'
-            };
-            res.json(response);
+            });
         }
         else {
             var userId = result[0].dataValues.id;
@@ -104,31 +89,40 @@ router.post('/single_upload', function (req, res) {
                     UserId: userId,
                     name: svgName
                 }
-            }).then(function(icons) {
-                // 已经存在，找该图标当前版本号最大的值
+            }).then(function(icons) { // 已经存在，找该图标当前版本号最大的值
                 if (icons.length > 0) {
-                    models.Icon.max('version', {
+                    console.log('updating start');
+                    // 旧版本全部下线
+                    models.Icon.update({ online: false }, {
                         where: {
                             UserId: userId,
                             name: svgName
                         }
-                    }).then(function(max) {
-                        svgo.optimize(svgContent, function (result) {
-                            models.Icon.create({
-                                name: svgName,
-                                content: result.data,
-                                projectId: projectId,
-                                categoryId: categoryId,
+                    }).then(function (){
+                        models.Icon.max('version', {
+                            where: {
                                 UserId: userId,
-                                remarks: remarks,
-                                version: max + 1, // 在当前版本号基础上加 1
-                                experienceVersion: false
-                            }).then(function () {
-                                var response = {
-                                    "status": 200,
-                                    "msg": 'success'
-                                };
-                                res.json(response);
+                                name: svgName
+                            }
+                        }).then(function(max) {
+                            svgo.optimize(svgContent, function (result) {
+                                models.Icon.create({
+                                    name: svgName,
+                                    author: author,
+                                    online: true, // 上传默认图标上线
+                                    content: result.data,
+                                    projectId: projectId,
+                                    categoryId: categoryId,
+                                    UserId: userId,
+                                    remarks: remarks,
+                                    version: max + 1, // 在当前版本号基础上加 1
+                                    experienceVersion: false
+                                }).then(function () {
+                                    res.json({
+                                        "status": 200,
+                                        "msg": 'success'
+                                    });
+                                });
                             });
                         });
                     });
@@ -137,6 +131,8 @@ router.post('/single_upload', function (req, res) {
                     svgo.optimize(svgContent, function (result) {
                         models.Icon.create({
                             name: svgName,
+                            author: author,
+                            online: true, // 首次上传默认图标上线
                             content: result.data,
                             projectId: projectId,
                             categoryId: categoryId,
@@ -145,11 +141,10 @@ router.post('/single_upload', function (req, res) {
                             version: 1, // 初次上传版本号默认为 1
                             experienceVersion: false
                         }).then(function () {
-                            var response = {
+                            res.json({
                                 "status": 200,
                                 "msg": 'success'
-                            };
-                            res.json(response);
+                            });
                         });
                     });
                 }
@@ -201,10 +196,14 @@ router.post('/batch_upload', upload.array('image'), function (req, res) {
                         svgo.optimize(data, function (result) {
                             models.Icon.create({
                                 name: fileOriginalName[i], // SVG 文件名
+                                author: 'maybexia', // 默认作者
+                                online: false, // 预览版本默认是下线
                                 content: result.data, // SVG 文件内容
                                 projectId: 0, // 0 表示图标是预览版本的项目 ID
                                 categoryId: 0, // 0 表示图标是预览版本的分类 ID
                                 UserId: userId,
+                                remarks: '',
+                                version: 0, // 默认版本 0
                                 experienceVersion: true
                             }).then(function () {
                                 // console.log('upload suc');
@@ -213,11 +212,10 @@ router.post('/batch_upload', upload.array('image'), function (req, res) {
                             count++;
 
                             if (count === uploadFileNum) {
-                                var response = {
+                                res.json({
                                     "status": 200,
                                     "msg": 'success'
-                                };
-                                res.json(response);
+                                });
                             }
                         });
                     });
@@ -242,12 +240,11 @@ router.post('/getFiles', function (req, res, next) {
                 content: result[item].dataValues.content
             });
         }
-        var response = {
+        res.json({
             "status": 200,
             "msg": 'success',
             "data": files
-        };
-        res.json(response);
+        });
     });
 });
 
@@ -257,7 +254,7 @@ router.post('/register', function (req, res, next) {
     var userName = params.username;
     var password = params.password;
     // var machineCode = params.machineCode;
-    var sig = params.sig;
+    // var sig = params.sig;
     // var privatePem = fs.readFileSync(path.join(__dirname, '..', 'config/production/rsa_private_key.pem'));
     // var publicPem = fs.readFileSync(path.join(__dirname, '..', 'config/production/rsa_public_key.pem'));
     // var privateKey = privatePem.toString(); // 私钥
@@ -297,108 +294,38 @@ router.post('/register', function (req, res, next) {
     * 2. 除第一次登录时,先利用 sig 解出 userName
     * 3. 用户更换 machineCode 登录时,需要添加新记录
     * */
-    if (userName && password && (!sig)) {
+    if (userName && password) {
         models.User.findAll({
             where: {
                 userName: userName
             }
         }).then(function (result) {
             if (result.length > 0) { // 用户已存在
-                var response = {
+                res.json({
                     "status": 400,
-                    "msg": '用户已存在'
-                };
-                res.json(response);
+                    "msg": '用户名已存在'
+                });
             }
             else { // 创建新用户
                 var encryptedPassword = hashCrypt(userName, password); // 加密的 password
                 models.User.create({
                     userName: userName,
                     encryptedPassword: encryptedPassword
-                }).then(function () {
-                    var response = {
+                }).then(function (user) {
+                    res.json({
                         "status": 200,
+                        "sig": user.dataValues.encryptedPassword,
                         "msg": 'succ'
-                    };
-                    res.json(response);
+                    });
                 });
-            //     var encryptedPassword = hashCrypt(userName, password); // 加密的 password
-            //     var sig = rsaSign(encryptedPassword, machineCode); // 签名
-            //     for (var item in result) {
-            //         if (!result[item].dataValues.encryptedPassword) { // encryptedPassword 为空时
-            //             models.User.update({
-            //                 encryptedPassword: encryptedPassword,
-            //                 machineCode: machineCode,
-            //                 sig: sig
-            //             }, {
-            //                 where: {
-            //                     userName: userName
-            //                 }
-            //             }).then(function () {});
-            //
-            //             var response = {
-            //                 "status": 200,
-            //                 "msg": 'success',
-            //                 "sig": sig
-            //             };
-            //             res.json(response);
-            //         }
-            //         else if (encryptedPassword === result[item].dataValues.encryptedPassword){ // encryptedPassword 存在时
-            //             var response = {
-            //                 "status": 200,
-            //                 "msg": 'success',
-            //                 "sig": sig
-            //             };
-            //             res.json(response);
-            //         }
-            //         else {
-            //             var response = {
-            //                 "status": 400,
-            //                 "msg": 'fail'
-            //             };
-            //             res.json(response);
-            //         }
-            //     }
             }
         });
     }
-    else if (sig && (!userName) && (!password)) { // 通过 sig 直接登录
-        models.User.findAll({
-                where: {
-                    machineCode: machineCode
-                }
-            })
-            .then(function (result) {
-                if (rsaSign(result[0].dataValues.encryptedPassword, machineCode) === sig) { // 机器码是唯一的
-                    console.log('合法用户');
-                    var response = {
-                        "status": 200,
-                        "msg": 'success',
-                        "sig": sig
-                    };
-                    res.json(response);
-                }
-                else {
-                    console.log('非法用户');
-                    var response = {
-                        "status": 400,
-                        "msg": 'fail'
-                    };
-                    res.json(response);
-                }
-                // if (result) {
-                // }
-                // else { // 如果该用户不存在,则创建
-                //     models.User.create({
-                //         userName: userName,
-                //         encryptedPassword: '',
-                //         machineCode: '',
-                //         sig: ''
-                //     }).then(function () {
-                //         console.log('register suc');
-                //     });
-                // }
-            });
+    else {
+        res.json({
+            "status": 400,
+            "msg": 'params error'
+        });
     }
 });
 
@@ -437,7 +364,7 @@ router.post('/login', function (req, res, next) {
                     var response = {
                         "status": 200,
                         "msg": '登录成功',
-                        sig: sig
+                        "sig": sig
                     };
                     res.json(response);
                 }
@@ -601,40 +528,6 @@ router.post('/addMember', function (req, res, next) {
     });
 });
 
-// 查询分类
-router.post('/queryCategory', function (req, res, next) {
-    var projectId = req.body.projectId;
-    var categoryName = req.body.categoryName;
-
-    models.Project.findAll({
-        where: {
-            id: projectId
-        }
-    }).then(function (result) {
-        if (result.length == 0) {
-            var response = {
-                "status": 400,
-                "msg": '项目不存在'
-            };
-            res.json(response);
-        }
-        else {
-            var projectId = result[0].dataValues.id;
-            models.Category.create({
-                categoryName: categoryName,
-                ProjectId: projectId
-            }).then(function (data) {
-                var response = {
-                    "status": 200,
-                    "msg": 'succ',
-                    "categoryId": data.dataValues.id
-                };
-                res.json(response);
-            });
-        }
-    });
-});
-
 // 查询项目+分类
 router.post('/queryProject', function (req, res, next) {
     var sig = req.body.sig;
@@ -712,39 +605,50 @@ router.post('/queryIconByProId', function (req, res, next) {
     var sig = req.body.sig; 
 
     // sig 验证
-
-
-    // 相同 name 的图标返回当前 version 最大的那个
-    models.Icon.findAll({
-        attributes: ['name', 'content', [sequelize.fn('MAX', sequelize.col('version')), 'curVersion']],
-        group: 'name',
+    models.User.findAll({
         where: {
-            projectId: projectId,
-            experienceVersion: false
+            encryptedPassword: sig
         }
-    }).then(function (result) {
-        if (result.length == 0) {
-            var response = {
-                "status": 200,
-                "msg": '该项目暂无图标'
-            };
-            res.json(response);
+    }).then(function (user) {
+        if (user.length == 0) { // 用户不存在
+            res.json({
+                "status": 400,
+                "msg": '用户不存在'
+            });
         }
         else {
-            var iconList = [];
-            for (var item in result) {
-                console.log("result:" + result[item].dataValues.curVersion);
-                iconList.push({
-                    name: result[item].dataValues.name,
-                    content: result[item].dataValues.content
-                });
-            }
-            var response = {
-                "status": 200,
-                "msg": 'succ',
-                "list": iconList
-            };
-            res.json(response);
+            // 相同 name 的图标返回当前 version 最大的那个
+            models.Icon.findAll({
+                attributes: ['name', 'content', [sequelize.fn('MAX', sequelize.col('version')), 'curVersion']],
+                group: 'name',
+                where: {
+                    projectId: projectId,
+                    experienceVersion: false
+                }
+            }).then(function (result) {
+                if (result.length == 0) {
+                    var response = {
+                        "status": 200,
+                        "msg": '该项目暂无图标'
+                    };
+                    res.json(response);
+                }
+                else {
+                    var iconList = [];
+                    for (var item in result) {
+                        iconList.push({
+                            name: result[item].dataValues.name,
+                            content: result[item].dataValues.content
+                        });
+                    }
+                    var response = {
+                        "status": 200,
+                        "msg": 'succ',
+                        "list": iconList
+                    };
+                    res.json(response);
+                }
+            });
         }
     });
 });
@@ -752,40 +656,57 @@ router.post('/queryIconByProId', function (req, res, next) {
 // 根据 categoryId 查询 icon
 router.post('/queryIconByCateId', function (req, res, next) {
     var categoryId = req.body.categoryid;
-    // var sig = req.body.sig;
+    var sig = req.body.sig;
 
-    models.Icon.findAll({
+    // sig 验证
+    models.User.findAll({
         where: {
-            categoryId: categoryId,
-            experienceVersion: false
+            encryptedPassword: sig
         }
-    }).then(function (result) {
-        if (result.length == 0) {
-            var response = {
-                "status": 200,
-                "msg": '该分类暂无图标'
-            };
-            res.json(response);
+    }).then(function (user) {
+        if (user.length == 0) {
+            res.json({
+                "status": 400,
+                "msg": '用户不存在'
+            });
         }
         else {
-            var iconList = [];
-            for (var item in result) {
-                iconList.push({
-                    name: result[item].dataValues.name,
-                    content: result[item].dataValues.content
-                });
-            }
-            var response = {
-                "status": 200,
-                "msg": 'succ',
-                "list": iconList
-            };
-            res.json(response);
+            models.Icon.findAll({
+                attributes: ['name', 'content', [sequelize.fn('MAX', sequelize.col('version')), 'curVersion']],
+                group: 'name',
+                where: {
+                    categoryId: categoryId,
+                    experienceVersion: false
+                }
+            }).then(function (result) {
+                if (result.length == 0) {
+                    var response = {
+                        "status": 200,
+                        "msg": '该分类暂无图标'
+                    };
+                    res.json(response);
+                }
+                else {
+                    var iconList = [];
+                    for (var item in result) {
+                        iconList.push({
+                            name: result[item].dataValues.name,
+                            content: result[item].dataValues.content
+                        });
+                    }
+                    var response = {
+                        "status": 200,
+                        "msg": 'succ',
+                        "list": iconList
+                    };
+                    res.json(response);
+                }
+            });
         }
     });
 });
 
-// 根据 sig 查询 icon
+// 根据 sig 查询用户所有项目的图标 TODO
 router.post('/queryIconBySig', function (req, res, next) {
     models.User.findAll({
         where: {
@@ -813,13 +734,39 @@ router.post('/queryIconBySig', function (req, res, next) {
                         content: icons[item].dataValues.content
                     });
                 }
-                var response = {
+                res.json({
                     "status": 200,
                     "msg": 'succ',
                     "list": iconList
-                };
-                res.json(response);  
+                });  
             });
+        }
+    });
+});
+
+// 提示图标是否存在，返回值： 1. 是否存在（project）2. 某个不同于他想上传分类已经存在，old_catgeoryname
+router.post('/svgExist', function (req, res, next) {
+    var svgName = req.body.svgname;
+    var projectId = req.body.projectid;
+    models.Icon.findAll({
+        where: {
+            name: svgName,
+            projectId: projectId,
+            online: true
+        }
+    }).then(function (result) {
+        if (result.length == 0) { // 图标不存在
+            res.json({
+                "status": 200,
+                "code": 0
+            }); 
+        }
+        else {
+            res.json({
+                "status": 200,
+                "code": 1, 
+                "categoryid": result[0].dataValues.categoryId
+            }); 
         }
     });
 });

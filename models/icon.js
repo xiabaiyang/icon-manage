@@ -7,6 +7,16 @@ module.exports = function (sequelize, DataTypes) {
             allowNull: false,
             unique: false
         },
+        author: {
+            type: DataTypes.STRING,
+            allowNull: false,
+            unique: false
+        },
+        online: {
+            type: DataTypes.BOOLEAN,
+            allowNull: true,
+            unique: false
+        },
         content: {
             type: DataTypes.TEXT('long'),
             allowNull: false,
