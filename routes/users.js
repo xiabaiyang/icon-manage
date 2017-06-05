@@ -225,6 +225,78 @@ router.post('/batch_upload', upload.array('image'), function (req, res) {
     });
 });
 
+router.post('/upload', upload.array('image'), function (req, res) {
+    var sig = req.query.sig;
+    var uploadFileNum = req.files.length;
+    var fileOriginalName = [];
+    var svgo = new SVGO();
+    if (uploadFileNum < 1) {
+        res.json({
+            "status": 400,
+            "msg": "没有选择要上传的文件"
+        });
+        return -1;
+    }
+
+    models.User.findAll({
+        where: {
+            encryptedPassword: sig
+        }
+    }).then(function (result) {
+        console.log('查询结果...' + result);
+        if (result.length == 0) { // sig 错误
+            var response = {
+                "status": 400,
+                "msg": 'sig 错误'
+            };
+            res.json(response);
+        }
+        else {
+            var userId = result[0].dataValues.id;
+            for (var i = 0; i < uploadFileNum; i++) {
+                var count = 0; // 存储文件计数用
+                (function (i) {
+                    fileOriginalName[i] = req.files[i].originalname;
+
+                    fs.readFile(req.files[i].path, 'utf8', function (err, data) {
+                        if (err) {
+                            res.json({
+                                "status": 500,
+                                "msg": '文件保存失败'
+                            });
+                        }
+                        svgo.optimize(data, function (result) {
+                            models.Icon.create({
+                                name: fileOriginalName[i], 
+                                author: 'maybexia',
+                                online: true,
+                                content: result.data,
+                                projectId: 1,
+                                categoryId: 1,
+                                UserId: userId,
+                                remarks: '',
+                                version: 1,
+                                experienceVersion: false
+                            }).then(function () {
+                                // console.log('upload suc');
+                            });
+
+                            count++;
+
+                            if (count === uploadFileNum) {
+                                res.json({
+                                    "status": 200,
+                                    "msg": 'success'
+                                });
+                            }
+                        });
+                    });
+                })(i)
+            }
+        }
+    });
+});
+
 router.post('/getFiles', function (req, res, next) {
     models.Icon.findAll({
         attributes: ['name', 'content'],
