@@ -300,7 +300,7 @@ router.post('/upload', upload.array('image'), function (req, res) {
 
 router.post('/getFiles', function (req, res, next) {
     models.Icon.findAll({
-        attributes: ['name', 'content'],
+        attributes: ['name', 'content', 'author'],
         where: {
             experienceVersion: true
         }
