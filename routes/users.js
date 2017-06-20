@@ -310,7 +310,8 @@ router.post('/getFiles', function (req, res, next) {
         for (var item in result) {
             files.push({
                 name: result[item].dataValues.name,
-                content: result[item].dataValues.content
+                content: result[item].dataValues.content,
+                author: result[item].dataValues.author
             });
         }
         res.json({
