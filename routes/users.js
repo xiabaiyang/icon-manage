@@ -155,6 +155,7 @@ router.post('/single_upload', function (req, res) {
 
 router.post('/batch_upload', upload.array('image'), function (req, res) {
     var sig = req.query.sig;
+    var author = req.query.author;
     var uploadFileNum = req.files.length;
     var fileOriginalName = [];
     var svgo = new SVGO();
@@ -196,7 +197,7 @@ router.post('/batch_upload', upload.array('image'), function (req, res) {
                         svgo.optimize(data, function (result) {
                             models.Icon.create({
                                 name: fileOriginalName[i], // SVG 文件名
-                                author: 'maybexia', // 默认作者
+                                author: author, // 默认作者
                                 online: false, // 预览版本默认是下线
                                 content: result.data, // SVG 文件内容
                                 projectId: 0, // 0 表示图标是预览版本的项目 ID
