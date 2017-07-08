@@ -59,8 +59,16 @@ router.post('/single_upload', function (req, res) {
     var author = reqParams.author;
     var version = 1; // 默认是 1
     var svgContent = decodeURIComponent(reqParams.content);
-
     var svgo = new SVGO();
+
+    if (!sig || !svgName || !categoryId || !projectId || !remarks || !author || !svgContent) {
+        res.json({
+            "status": 400,
+            "msg": "缺少参数"
+        });
+        return -1;
+    }
+
     if (svgContent == null || svgContent == undefined) {
         res.json({
             "status": 400,
@@ -77,7 +85,7 @@ router.post('/single_upload', function (req, res) {
         if (result.length == 0) { // sig 错误
             res.json({
                 "status": 400,
-                "msg": 'sig 错误'
+                "msg": '用户不存在'
             });
         }
         else {
@@ -153,12 +161,92 @@ router.post('/single_upload', function (req, res) {
     });
 });
 
-router.post('/batch_upload', upload.array('image'), function (req, res) {
-    var sig = req.query.sig;
-    var author = req.query.author;
-    var uploadFileNum = req.files.length;
-    var fileOriginalName = [];
+/**
+ * 检测图标的版本号
+ */
+router.post('/version_check', function (req, res) {
+    var reqParams = req.body;
+    var sig = reqParams.sig;
+    var svgList = reqParams.list;
+
+    if (!sig || !svgList) {
+        res.json({
+            "status": 400,
+            "msg": "缺少参数"
+        });
+        return -1;
+    }
+
+    models.User.findAll({
+        where: {
+            encryptedPassword: sig
+        }
+    }).then(function (result) {
+        if (result.length == 0) { // sig 错误
+            res.json({
+                "status": 400,
+                "msg": '用户不存在'
+            });
+        }
+        else {
+            var userId = result[0].dataValues.id;
+            var list = [];
+            for (var i = 0; i < svgList.length; i++) {
+                var count = 0; // 计数用
+                (function (i) {
+                    var svgName = svgList[i];
+                    // 确定上传图标是否已经存在
+                    models.Icon.findAll({
+                        where: {
+                            UserId: userId,
+                            name: svgName
+                        }
+                    }).then(function(icons) {
+                        // 已经存在
+                        if (icons.length == 1) {
+                            list.push({
+                                svgName: svgName,
+                                version: icons[0].dataValues.version
+                            });
+                        }
+                        else {
+                            // 不存在,返回版本号为 0,方便后续覆盖
+                            list.push({
+                                svgName: svgName,
+                                version: 0
+                            });
+                        }
+
+                        count ++;
+
+                        if (count == svgList.length) {
+                            res.json({
+                                "status": 200,
+                                "msg": 'success',
+                                "list": list
+                            });
+                        }
+                    });
+                })(i);
+            }
+        }
+    });
+});
+
+router.post('/batch_upload', function (req, res) {
+    var sig = req.body.sig;
+    var svgList = JSON.parse(req.body.list);
+    var uploadFileNum = svgList.length;
     var svgo = new SVGO();
+
+    if (!sig || !svgList) {
+        res.json({
+            "status": 400,
+            "msg": "缺少参数"
+        });
+        return -1;
+    }
+
     if (uploadFileNum < 1) {
         res.json({
             "status": 400,
@@ -172,56 +260,81 @@ router.post('/batch_upload', upload.array('image'), function (req, res) {
             encryptedPassword: sig
         }
     }).then(function (result) {
-        console.log('查询结果...' + result);
+        // 验证 sig
         if (result.length == 0) { // sig 错误
             var response = {
                 "status": 400,
-                "msg": 'sig 错误'
+                "msg": '用户不存在'
             };
             res.json(response);
         }
         else {
             var userId = result[0].dataValues.id;
-            for (var i = 0; i < uploadFileNum; i++) {
-                var count = 0; // 存储文件计数用
-                (function (i) {
-                    fileOriginalName[i] = req.files[i].originalname;
-
-                    fs.readFile(req.files[i].path, 'utf8', function (err, data) {
-                        if (err) {
-                            res.json({
-                                "status": 500,
-                                "msg": '文件保存失败'
-                            });
-                        }
-                        svgo.optimize(data, function (result) {
-                            models.Icon.create({
-                                name: fileOriginalName[i], // SVG 文件名
-                                author: author, // 默认作者
-                                online: false, // 预览版本默认是下线
-                                content: result.data, // SVG 文件内容
-                                projectId: 0, // 0 表示图标是预览版本的项目 ID
-                                categoryId: 0, // 0 表示图标是预览版本的分类 ID
-                                UserId: userId,
-                                remarks: '',
-                                version: 0, // 默认版本 0
-                                experienceVersion: true
-                            }).then(function () {
-                                // console.log('upload suc');
-                            });
-
-                            count++;
-
-                            if (count === uploadFileNum) {
-                                res.json({
-                                    "status": 200,
-                                    "msg": 'success'
-                                });
-                            }
-                        });
+            var existedList = [];
+            // 对 svgList 进行处理
+            for (var i = 0; i < uploadFileNum; i ++) {
+                if (svgList[i].content == null || svgList[i].content == undefined) {
+                    res.json({
+                        "status": 400,
+                        "msg": "上传文件错误",
+                        "svgName": svgList[i].name
                     });
-                })(i)
+                    return -1;
+                }
+                else {
+                    // 检测旧版本 svg 的存在
+                    if (svgList[i].version > 0) {
+                        existedList.push({
+                            userId: userId,
+                            name: svgList[i].name,
+                            version: svgList[i].version
+                        });
+                    }
+                    svgo.optimize(decodeURIComponent(svgList[i].content), function (result) {
+                        svgList[i].content = result.data;
+                        svgList[i].version = svgList[i].version + 1;
+                        svgList[i]['online'] = true;
+                        svgList[i]['UserId'] = userId;
+                        svgList[i]['experienceVersion'] = false;
+                    });
+                }
             }
+
+            models.Icon.bulkCreate(svgList).then(function () {
+                if (existedList.length > 1) {
+                    // 旧版本下线
+                    for (var i = 0; i < existedList.length; i ++) {
+                        var count = 0; // 计数用
+                        (function (i) {
+                            models.Icon.update({ online: false }, {
+                                where: {
+                                    UserId: existedList[i].userId,
+                                    name: existedList[i].name,
+                                    version: existedList[i].version
+                                }
+                            }).then(function (){
+
+                                count ++;
+
+                                if (count == existedList.length) {
+                                    // console.log('batch upload suc');
+                                    res.json({
+                                        "status": 200,
+                                        "msg": 'success'
+                                    });
+                                }
+                            });
+                        })(i);
+                    }
+                }
+                else {
+                    // console.log('batch upload suc');
+                    res.json({
+                        "status": 200,
+                        "msg": 'success'
+                    });
+                }
+            });
         }
     });
 });
@@ -231,6 +344,7 @@ router.post('/upload', upload.array('image'), function (req, res) {
     var uploadFileNum = req.files.length;
     var fileOriginalName = [];
     var svgo = new SVGO();
+
     if (uploadFileNum < 1) {
         res.json({
             "status": 400,
@@ -279,17 +393,15 @@ router.post('/upload', upload.array('image'), function (req, res) {
                                 version: 1,
                                 experienceVersion: false
                             }).then(function () {
-                                // console.log('upload suc');
+                                count++;
+
+                                if (count === uploadFileNum) {
+                                    res.json({
+                                        "status": 200,
+                                        "msg": 'success'
+                                    });
+                                }
                             });
-
-                            count++;
-
-                            if (count === uploadFileNum) {
-                                res.json({
-                                    "status": 200,
-                                    "msg": 'success'
-                                });
-                            }
                         });
                     });
                 })(i)
@@ -492,6 +604,15 @@ router.post('/login', function (req, res, next) {
 router.post('/createProject', function (req, res, next) {
     var sig = req.body.sig;
     var proName = req.body.projectname;
+
+    if (!sig || !proName) {
+        res.json({
+            "status": 400,
+            "msg": "缺少参数"
+        });
+        return -1;
+    }
+
     models.User.findAll({
         where: {
             encryptedPassword: sig
@@ -505,15 +626,18 @@ router.post('/createProject', function (req, res, next) {
             res.json(response);
         }
         else {
+            var invitedKey = Math.random().toString(36).slice(2, 10).toUpperCase(); // 随机邀请码
             models.Project.create({
                 proName: proName,
                 ownerId: result[0].dataValues.id,
-                ownerName: result[0].dataValues.userName
+                ownerName: result[0].dataValues.userName,
+                invitedKey: invitedKey
             }).then(function (data) {
                 var response = {
                     "status": 200,
                     "msg": 'succ',
-                    "projectId": data.dataValues.id
+                    "projectId": data.dataValues.id,
+                    "invitedKey": invitedKey
                 };
                 res.json(response);
             });
@@ -523,32 +647,57 @@ router.post('/createProject', function (req, res, next) {
 
 // 新建分类
 router.post('/createCategory', function (req, res, next) {
+    var sig = req.body.sig;
     var projectId = req.body.projectid;
     var categoryName = req.body.categoryname;
-    models.Project.findAll({
+
+    if (!sig || !projectId || !categoryName) {
+        res.json({
+            "status": 400,
+            "msg": "缺少参数"
+        });
+        return -1;
+    }
+
+    models.User.findAll({
         where: {
-            id: projectId
+            encryptedPassword: sig
         }
     }).then(function (result) {
         if (result.length == 0) {
             var response = {
                 "status": 400,
-                "msg": '项目不存在'
+                "msg": '用户不存在'
             };
             res.json(response);
         }
         else {
-            var projectId = result[0].dataValues.id;
-            models.Category.create({
-                categoryName: categoryName,
-                ProjectId: projectId
-            }).then(function (data) {
-                var response = {
-                    "status": 200,
-                    "msg": 'succ',
-                    "categoryId": data.dataValues.id
-                };
-                res.json(response);
+            models.Project.findAll({
+                where: {
+                    id: projectId
+                }
+            }).then(function (result) {
+                if (result.length == 0) {
+                    var response = {
+                        "status": 400,
+                        "msg": '项目不存在'
+                    };
+                    res.json(response);
+                }
+                else {
+                    var projectId = result[0].dataValues.id;
+                    models.Category.create({
+                        categoryName: categoryName,
+                        ProjectId: projectId
+                    }).then(function (data) {
+                        var response = {
+                            "status": 200,
+                            "msg": 'succ',
+                            "categoryId": data.dataValues.id
+                        };
+                        res.json(response);
+                    });
+                }
             });
         }
     });
@@ -556,11 +705,21 @@ router.post('/createCategory', function (req, res, next) {
 
 // 项目添加成员
 router.post('/addMember', function (req, res, next) {
-    var projectId = req.body.project;
+    // var projectId = req.body.projectid;
+    var invitedKey = req.body.key; // 项目邀请码
     var memberSig = req.body.sig; // 被添加人的标识
+
+    if (!invitedKey || !memberSig) {
+        res.json({
+            "status": 400,
+            "msg": "缺少参数"
+        });
+        return -1;
+    }
+
     models.Project.findAll({
         where: {
-            id: projectId
+            invitedKey: invitedKey
         }
     }).then(function (project) {
         if (project.length == 0) {
@@ -571,7 +730,7 @@ router.post('/addMember', function (req, res, next) {
             res.json(response);
         }
         else {
-            var projectName = project[0].dataValues.proName;
+            var projectId = project[0].dataValues.id;
             models.User.findAll({
                 where: {
                     encryptedPassword: memberSig
@@ -586,15 +745,32 @@ router.post('/addMember', function (req, res, next) {
                 }
                 else {
                     var userId = user[0].dataValues.id;
-                    models.ProjectMember.create({
-                        ProjectId: projectId,
-                        UserId: userId
-                    }).then(function (result) {
-                        var response = {
-                            "status": 200,
-                            "msg": 'succ'
-                        };
-                        res.json(response);
+
+                    // 确认成员是否已经加入该项目
+                    models.ProjectMember.findAll({
+                        where: {
+                            UserId: userId
+                        }
+                    }).then(function (user) {
+                        if (user.length != 0) {
+                            var response = {
+                                "status": 400,
+                                "msg": '成员已加入该项目'
+                            };
+                            res.json(response);
+                        }
+                        else {
+                            models.ProjectMember.create({
+                                ProjectId: projectId,
+                                UserId: userId
+                            }).then(function (result) {
+                                var response = {
+                                    "status": 200,
+                                    "msg": 'succ'
+                                };
+                                res.json(response);
+                            });
+                        }
                     });
                 }
             });
@@ -605,6 +781,15 @@ router.post('/addMember', function (req, res, next) {
 // 查询项目+分类
 router.post('/queryProject', function (req, res, next) {
     var sig = req.body.sig;
+
+    if (!sig) {
+        res.json({
+            "status": 400,
+            "msg": "缺少参数"
+        });
+        return -1;
+    }
+
     models.User.findAll({
         where: {
             encryptedPassword: sig
@@ -638,6 +823,7 @@ router.post('/queryProject', function (req, res, next) {
                     data.forEach(function (value, index, array) {
                         var projectId = value.dataValues.id;
                         var projectName = value.dataValues.proName;
+                        var invitedKey = value.dataValues.invitedKey;
 
                         models.Category.findAll({
                             where: {
@@ -654,6 +840,7 @@ router.post('/queryProject', function (req, res, next) {
                             list.push({
                                 projectId: projectId,
                                 projectName: projectName,
+                                invitedKey: invitedKey,
                                 categoryList: categoryList
                             });
 
@@ -676,7 +863,15 @@ router.post('/queryProject', function (req, res, next) {
 // 根据 projectId 查询 icon
 router.post('/queryIconByProId', function (req, res, next) {
     var projectId = req.body.projectid;
-    var sig = req.body.sig; 
+    var sig = req.body.sig;
+
+    if (!projectId || !sig) {
+        res.json({
+            "status": 400,
+            "msg": "缺少参数"
+        });
+        return -1;
+    }
 
     // sig 验证
     models.User.findAll({
@@ -731,6 +926,14 @@ router.post('/queryIconByProId', function (req, res, next) {
 router.post('/queryIconByCateId', function (req, res, next) {
     var categoryId = req.body.categoryid;
     var sig = req.body.sig;
+
+    if (!categoryId || !sig) {
+        res.json({
+            "status": 400,
+            "msg": "缺少参数"
+        });
+        return -1;
+    }
 
     // sig 验证
     models.User.findAll({
@@ -822,6 +1025,15 @@ router.post('/queryIconBySig', function (req, res, next) {
 router.post('/svgExist', function (req, res, next) {
     var svgName = req.body.svgname;
     var projectId = req.body.projectid;
+
+    if (!svgName || !projectId) {
+        res.json({
+            "status": 400,
+            "msg": "缺少参数"
+        });
+        return -1;
+    }
+
     models.Icon.findAll({
         where: {
             name: svgName,
