@@ -19,7 +19,7 @@ module.exports = function (sequelize, DataTypes) {
         },
         invitedKey: {
             type: DataTypes.STRING,
-            allowNull: false,
+            allowNull: true,
             unique: true
         }
     }, {
