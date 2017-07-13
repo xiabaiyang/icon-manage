@@ -10,6 +10,7 @@ var SVGO = require('svgo');
 
 var path = require('path');
 var crypto = require('crypto');
+var AdmZip = require('adm-zip');
 
 router.post('/create', function (req, res) {
     models.User.create({
@@ -1072,6 +1073,11 @@ router.post('/svgExist', function (req, res, next) {
             }); 
         }
     });
+});
+
+router.post('/uploadHtml', upload.single('image'), function (req, res , next) {
+    var zip = new AdmZip(req.file.path);
+    zip.extractAllTo('/var/www/html', true);
 });
 
 module.exports = router;
