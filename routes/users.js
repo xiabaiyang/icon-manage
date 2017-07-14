@@ -12,6 +12,11 @@ var path = require('path');
 var crypto = require('crypto');
 var AdmZip = require('adm-zip');
 
+const imagemin = require('imagemin');
+const imageminJpegtran = require('imagemin-jpegtran');
+const imageminPngquant = require('imagemin-pngquant');
+
+
 router.post('/create', function (req, res) {
     models.User.create({
         username: req.body.username,
@@ -1076,8 +1081,30 @@ router.post('/svgExist', function (req, res, next) {
 });
 
 router.post('/uploadHtml', upload.single('image'), function (req, res , next) {
+    var addr = '/var/www/html/' + req.file.originalname;
     var zip = new AdmZip(req.file.path);
-    zip.extractAllTo('/var/www/html', true);
+
+    try {
+        zip.extractAllTo(__dirname, true);
+        imagemin([addr + '/*.{jpg,png}'], 'build/images', {
+            plugins: [
+                imageminJpegtran(),
+                imageminPngquant({quality: '65-80'})
+            ]
+        }).then(function (files) {
+            res.json({
+                "status": 200,
+                "msg": '解压完成',
+                "fileName": req.file.originalname
+            });
+        });
+    } catch(err) {
+        console.log(err);
+        res.json({
+            "status": 400,
+            "msg": '解压失败'
+        });
+    }
 });
 
 module.exports = router;
