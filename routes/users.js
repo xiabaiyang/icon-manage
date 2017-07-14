@@ -1081,12 +1081,14 @@ router.post('/svgExist', function (req, res, next) {
 });
 
 router.post('/uploadHtml', upload.single('image'), function (req, res , next) {
-    var addr = '/var/www/html/' + req.file.originalname;
+    var randomDir = Math.random().toString(36).slice(2, 8);
+    var destination = '/var/www/html/' + randomDir + '/' + req.file.originalname;
     var zip = new AdmZip(req.file.path);
 
     try {
-        zip.extractAllTo('/var/www/html/', true);
-        imagemin([addr + '/*.{jpg,png}'], 'build/images', {
+
+        zip.extractAllTo('/var/www/html/' + randomDir + '/', true);
+        imagemin([destination + '/*.{jpg,png}'], 'build/images', {
             plugins: [
                 imageminJpegtran(),
                 imageminPngquant({quality: '65-80'})
@@ -1095,7 +1097,8 @@ router.post('/uploadHtml', upload.single('image'), function (req, res , next) {
             res.json({
                 "status": 200,
                 "msg": '解压完成',
-                "fileName": req.file.originalname
+                "fileName": req.file.originalname,
+                "dir": randomDir
             });
         });
     } catch(err) {
