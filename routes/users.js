@@ -1085,7 +1085,7 @@ router.post('/uploadHtml', upload.single('image'), function (req, res , next) {
     var zip = new AdmZip(req.file.path);
 
     try {
-        zip.extractAllTo(__dirname, true);
+        zip.extractAllTo('/var/www/html/', true);
         imagemin([addr + '/*.{jpg,png}'], 'build/images', {
             plugins: [
                 imageminJpegtran(),
