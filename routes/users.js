@@ -173,8 +173,7 @@ router.post('/single_upload', function (req, res) {
 router.post('/version_check', function (req, res) {
     var reqParams = req.body;
     var sig = reqParams.sig;
-    // var svgList = JSON.parse(reqParams.list);
-    var svgList = reqParams.list;
+    var svgList = JSON.parse(reqParams.list);
     console.log(svgList);
 
     if (!sig || !svgList) {
@@ -243,9 +242,8 @@ router.post('/version_check', function (req, res) {
 
 router.post('/batch_upload', function (req, res) {
     var sig = req.body.sig;
-    // var svgList = JSON.parse(req.body.list);
-    var svgList = req.body.list;
-    console.log(svgList)
+    var svgList = JSON.parse(req.body.list);
+    console.log(svgList);
     var uploadFileNum = svgList.length;
     var svgo = new SVGO();
 
@@ -283,7 +281,10 @@ router.post('/batch_upload', function (req, res) {
             var existedList = [];
             // 对 svgList 进行处理
             for (var i = 0; i < uploadFileNum; i ++) {
+                console.log('this is content:');
+                console.log(svgList[i].content);
                 svgList[i].content = decodeURIComponent(svgList[i].content);
+                console.log('this is content after decode:');
                 console.log(svgList[i].content);
                 if (svgList[i].content == null || svgList[i].content == undefined) {
                     res.json({
