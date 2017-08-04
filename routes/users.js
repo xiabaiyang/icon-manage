@@ -55,6 +55,7 @@ router.get('/:user_id/icons/:task_id/destroy', function (req, res) {
     });
 });
 
+// 后续去除
 router.post('/single_upload', function (req, res) {
     var reqParams = req.body;
     var sig = reqParams.sig;
@@ -206,7 +207,7 @@ router.post('/version_check', function (req, res) {
             for (var i = 0; i < svgList.length; i++) {
                 var count = 0; // 计数用
                 (function (i) {
-                    var svgName = svgList[i];
+                    var svgName = decodeURIComponent(svgList[i]);
                     console.log(svgName);
                     // 确定上传图标是否已经存在,而且必须是 online 版本
                     models.Icon.findAll({
