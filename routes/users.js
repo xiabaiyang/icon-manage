@@ -173,10 +173,15 @@ router.post('/single_upload', function (req, res) {
 router.post('/version_check', function (req, res) {
     var reqParams = req.body;
     var sig = reqParams.sig;
+    var projectId = reqParams.projectid;
+    var categoryId = reqParams.categoryid;
+    console.log('req.body:');
+    console.log(req.body);
     var svgList = JSON.parse(reqParams.list);
+    console.log('reqParams.list:');
     console.log(svgList);
 
-    if (!sig || !svgList) {
+    if (!sig || !svgList || !projectId || !categoryId) {
         res.json({
             "status": 400,
             "msg": "缺少参数"
@@ -202,11 +207,15 @@ router.post('/version_check', function (req, res) {
                 var count = 0; // 计数用
                 (function (i) {
                     var svgName = svgList[i];
-                    // 确定上传图标是否已经存在
+                    console.log(svgName);
+                    // 确定上传图标是否已经存在,而且必须是 online 版本
                     models.Icon.findAll({
                         where: {
                             UserId: userId,
-                            name: svgName
+                            name: svgName,
+                            projectId: projectId,
+                            categoryId: categoryId,
+                            online: true
                         }
                     }).then(function(icons) {
                         // 已经存在
@@ -299,7 +308,7 @@ router.post('/batch_upload', function (req, res) {
                             version: svgList[i].version
                         });
                     }
-                    svgo.optimize(decodeURIComponent(svgList[i].content), function (result) {
+                    svgo.optimize(svgList[i].content, function (result) {
                         svgList[i].content = result.data;
                         svgList[i].version = svgList[i].version + 1;
                         svgList[i]['online'] = true;
@@ -919,7 +928,7 @@ router.post('/queryIconByProId', function (req, res, next) {
         else {
             // 相同 name 的图标返回当前 version 最大的那个
             models.Icon.findAll({
-                attributes: ['name', 'content', [sequelize.fn('MAX', sequelize.col('version')), 'curVersion']],
+                attributes: ['name', 'author', 'content', 'projectId', 'categoryId', 'remarks', [sequelize.fn('MAX', sequelize.col('version')), 'curVersion']],
                 group: 'name',
                 where: {
                     projectId: projectId,
@@ -927,26 +936,30 @@ router.post('/queryIconByProId', function (req, res, next) {
                 }
             }).then(function (result) {
                 if (result.length == 0) {
-                    var response = {
+                    res.json({
                         "status": 200,
                         "msg": '该项目暂无图标'
-                    };
-                    res.json(response);
+                    });
                 }
                 else {
                     var iconList = [];
                     for (var item in result) {
+                        var value = result[item].dataValues;
                         iconList.push({
-                            name: result[item].dataValues.name,
-                            content: result[item].dataValues.content
+                            name: value.name,
+                            author: value.author,
+                            content: value.content,
+                            projectId: value.projectId,
+                            categoryId: value.categoryId,
+                            remarks: value.remarks,
+                            version: value.version
                         });
                     }
-                    var response = {
+                    res.json({
                         "status": 200,
                         "msg": 'succ',
                         "list": iconList
-                    };
-                    res.json(response);
+                    });
                 }
             });
         }
@@ -980,7 +993,7 @@ router.post('/queryIconByCateId', function (req, res, next) {
         }
         else {
             models.Icon.findAll({
-                attributes: ['name', 'content', [sequelize.fn('MAX', sequelize.col('version')), 'curVersion']],
+                attributes: ['name', 'author', 'content', 'projectId', 'categoryId', 'remarks', [sequelize.fn('MAX', sequelize.col('version')), 'curVersion']],
                 group: 'name',
                 where: {
                     categoryId: categoryId,
@@ -988,26 +1001,30 @@ router.post('/queryIconByCateId', function (req, res, next) {
                 }
             }).then(function (result) {
                 if (result.length == 0) {
-                    var response = {
+                    res.json({
                         "status": 200,
                         "msg": '该分类暂无图标'
-                    };
-                    res.json(response);
+                    });
                 }
                 else {
                     var iconList = [];
                     for (var item in result) {
+                        var value = result[item].dataValues;
                         iconList.push({
-                            name: result[item].dataValues.name,
-                            content: result[item].dataValues.content
+                            name: value.name,
+                            author: value.author,
+                            content: value.content,
+                            projectId: value.projectId,
+                            categoryId: value.categoryId,
+                            remarks: value.remarks,
+                            version: value.version
                         });
                     }
-                    var response = {
+                    res.json({
                         "status": 200,
                         "msg": 'succ',
                         "list": iconList
-                    };
-                    res.json(response);
+                    });
                 }
             });
         }
@@ -1116,6 +1133,75 @@ router.post('/uploadHtml', upload.single('image'), function (req, res , next) {
             "msg": '解压失败'
         });
     }
+});
+
+// 根据图标 name 查询所有版本的图标信息
+router.post('/queryIconByName', function (req, res, next) {
+    var reqParams = req.body;
+    var sig = reqParams.sig;
+    var svgName = reqParams.name;
+    var projectId = reqParams.projectid;
+    var categoryId = reqParams.categoryid;
+
+    if (!sig || !svgName || !projectId || !categoryId) {
+        res.json({
+            "status": 400,
+            "msg": "缺少参数"
+        });
+        return -1;
+    }
+
+    models.User.findAll({
+        where: {
+            encryptedPassword: sig
+        }
+    }).then(function(user) {
+        if (user.length == 0) { // 用户不存在
+            res.json({
+                "status": 400,
+                "msg": '用户不存在'
+            });
+        }
+        else {
+            var userId = user[0].dataValues.id;
+            models.Icon.findAll({
+                where: {
+                    UserId: userId,
+                    projectId: projectId,
+                    categoryId: categoryId,
+                    name: svgName
+                }
+            }).then(function (result) {
+                console.log(result);
+                if (result.length == 0) {
+                    res.json({
+                        "status": 400,
+                        "msg": '图标不存在'
+                    });
+                }
+                else {
+                    var iconList = [];
+                    for (var item in result) {
+                        var value = result[item].dataValues;
+                        iconList.push({
+                            name: value.name,
+                            author: value.author,
+                            content: value.content,
+                            projectId: value.projectId,
+                            categoryId: value.categoryId,
+                            remarks: value.remarks,
+                            version: value.version
+                        });
+                    }
+                    res.json({
+                        "status": 200,
+                        "msg": 'succ',
+                        "list": iconList
+                    });
+                }
+            });
+        }
+    });
 });
 
 module.exports = router;
