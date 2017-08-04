@@ -350,6 +350,7 @@ router.post('/batch_upload', function (req, res) {
 
 router.post('/upload', upload.array('image'), function (req, res) {
     var sig = req.query.sig;
+    var author = req.query.author;
     var uploadFileNum = req.files.length;
     var fileOriginalName = [];
     var svgo = new SVGO();
@@ -392,7 +393,7 @@ router.post('/upload', upload.array('image'), function (req, res) {
                         svgo.optimize(data, function (result) {
                             models.Icon.create({
                                 name: fileOriginalName[i], 
-                                author: 'maybexia',
+                                author: author,
                                 online: true,
                                 content: result.data,
                                 projectId: 1,
@@ -400,7 +401,7 @@ router.post('/upload', upload.array('image'), function (req, res) {
                                 UserId: userId,
                                 remarks: '',
                                 version: 1,
-                                experienceVersion: false
+                                experienceVersion: true
                             }).then(function () {
                                 count++;
 
