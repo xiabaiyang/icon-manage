@@ -12,6 +12,11 @@ module.exports = function (sequelize, DataTypes) {
             type: DataTypes.STRING,
             allowNull: false,
             unique: false
+        },
+        mail: {
+            type: DataTypes.STRING,
+            allowNull: false,
+            unique: false
         }
         // sig: {
         //     type: DataTypes.TEXT('long'),

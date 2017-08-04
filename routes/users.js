@@ -448,6 +448,7 @@ router.post('/register', function (req, res, next) {
     var params = req.body;
     var userName = params.username;
     var password = params.password;
+    var mail = params.mail;
     // var machineCode = params.machineCode;
     // var sig = params.sig;
     // var privatePem = fs.readFileSync(path.join(__dirname, '..', 'config/production/rsa_private_key.pem'));
@@ -489,7 +490,7 @@ router.post('/register', function (req, res, next) {
     * 2. 除第一次登录时,先利用 sig 解出 userName
     * 3. 用户更换 machineCode 登录时,需要添加新记录
     * */
-    if (userName && password) {
+    if (userName && password && mail) {
         models.User.findAll({
             where: {
                 userName: userName
@@ -505,7 +506,8 @@ router.post('/register', function (req, res, next) {
                 var encryptedPassword = hashCrypt(userName, password); // 加密的 password
                 models.User.create({
                     userName: userName,
-                    encryptedPassword: encryptedPassword
+                    encryptedPassword: encryptedPassword,
+                    mail: mail
                 }).then(function (user) {
                     res.json({
                         "status": 200,
@@ -823,7 +825,9 @@ router.post('/queryProject', function (req, res, next) {
             var userId = result[0].dataValues.id;
             // 自己创建或者加入的项目,都需要可见
             models.ProjectMember.findAll({
-                UserId: userId
+                where: {
+                    UserId: userId
+                }
             }).then(function (projects) {
                 var list = []; // 返回列表
                 if (projects.length == 0) {
