@@ -243,7 +243,6 @@ router.post('/version_check', function (req, res) {
 router.post('/batch_upload', function (req, res) {
     var sig = req.body.sig;
     var svgList = JSON.parse(req.body.list);
-    console.log(svgList);
     var uploadFileNum = svgList.length;
     var svgo = new SVGO();
 
@@ -281,11 +280,8 @@ router.post('/batch_upload', function (req, res) {
             var existedList = [];
             // 对 svgList 进行处理
             for (var i = 0; i < uploadFileNum; i ++) {
-                console.log('this is content:');
-                console.log(svgList[i].content);
+                svgList[i].name = decodeURIComponent(svgList[i].name);
                 svgList[i].content = decodeURIComponent(svgList[i].content);
-                console.log('this is content after decode:');
-                console.log(svgList[i].content);
                 if (svgList[i].content == null || svgList[i].content == undefined) {
                     res.json({
                         "status": 400,
