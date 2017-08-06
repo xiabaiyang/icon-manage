@@ -291,8 +291,8 @@ router.post('/batch_upload', function (req, res) {
             var count = 0; // 计数用
             for (var i = 0; i < uploadFileNum; i ++) {
                 (function (index) {
-                    svgList[i].name = decodeURIComponent(svgList[index].name);
-                    svgList[i].content = decodeURIComponent(svgList[index].content);
+                    svgList[index].name = decodeURIComponent(svgList[index].name);
+                    svgList[index].content = decodeURIComponent(svgList[index].content);
                     if (svgList[index].content == null || svgList[index].content == undefined) {
                         res.json({
                             "status": 400,
