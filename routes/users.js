@@ -175,14 +175,13 @@ router.post('/version_check', function (req, res) {
     var reqParams = req.body;
     var sig = reqParams.sig;
     var projectId = reqParams.projectid;
-    var categoryId = reqParams.categoryid;
     console.log('req.body:');
     console.log(req.body);
     var svgList = JSON.parse(reqParams.list);
     console.log('reqParams.list:');
     console.log(svgList);
 
-    if (!sig || !svgList || !projectId || !categoryId) {
+    if (!sig || !svgList || !projectId) {
         res.json({
             "status": 400,
             "msg": "缺少参数"
@@ -215,7 +214,6 @@ router.post('/version_check', function (req, res) {
                             UserId: userId,
                             name: svgName,
                             projectId: projectId,
-                            categoryId: categoryId,
                             online: true
                         }
                     }).then(function(icons) {
@@ -1143,9 +1141,8 @@ router.post('/queryIconByName', function (req, res, next) {
     var sig = reqParams.sig;
     var svgName = reqParams.name;
     var projectId = reqParams.projectid;
-    var categoryId = reqParams.categoryid;
 
-    if (!sig || !svgName || !projectId || !categoryId) {
+    if (!sig || !svgName || !projectId) {
         res.json({
             "status": 400,
             "msg": "缺少参数"
@@ -1170,7 +1167,6 @@ router.post('/queryIconByName', function (req, res, next) {
                 where: {
                     UserId: userId,
                     projectId: projectId,
-                    categoryId: categoryId,
                     name: svgName
                 }
             }).then(function (result) {
@@ -1201,6 +1197,50 @@ router.post('/queryIconByName', function (req, res, next) {
                         "list": iconList
                     });
                 }
+            });
+        }
+    });
+});
+
+// 刷新邀请码
+router.post('/refreshKey', function (req, res, next) {
+    var reqParams = req.body;
+    var sig = reqParams.sig;
+    var projectId = reqParams.projectid;
+
+    if (!sig || !projectId) {
+        res.json({
+            "status": 400,
+            "msg": "缺少参数"
+        });
+        return -1;
+    }
+
+    models.User.findAll({
+        where: {
+            encryptedPassword: sig
+        }
+    }).then(function (result) {
+        if (result.length == 0) {
+            var response = {
+                "status": 400,
+                "msg": '用户不存在'
+            };
+            res.json(response);
+        }
+        else {
+            var newInvitedKey = Math.random().toString(36).slice(2, 10).toUpperCase(); // 随机邀请码
+
+            models.Project.update({ invitedKey: newInvitedKey }, {
+                where: {
+                    id: projectId
+                }
+            }).then(function (result) {
+                res.json({
+                    "status": 200,
+                    "msg": 'succ',
+                    "invitedKey": newInvitedKey
+                });
             });
         }
     });
