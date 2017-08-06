@@ -175,11 +175,11 @@ router.post('/version_check', function (req, res) {
     var reqParams = req.body;
     var sig = reqParams.sig;
     var projectId = reqParams.projectid;
-    console.log('req.body:');
-    console.log(req.body);
+    // console.log('req.body:');
+    // console.log(req.body);
     var svgList = JSON.parse(reqParams.list);
-    console.log('reqParams.list:');
-    console.log(svgList);
+    // console.log('reqParams.list:');
+    // console.log(svgList);
 
     if (!sig || !svgList || !projectId) {
         res.json({
@@ -207,7 +207,7 @@ router.post('/version_check', function (req, res) {
                 var count = 0; // 计数用
                 (function (i) {
                     var svgName = decodeURIComponent(svgList[i]);
-                    console.log(svgName);
+                    // console.log(svgName);
                     // 确定上传图标是否已经存在,而且必须是 online 版本
                     models.Icon.findAll({
                         where: {
@@ -217,6 +217,7 @@ router.post('/version_check', function (req, res) {
                             online: true
                         }
                     }).then(function(icons) {
+                        // console.log(icons);
                         // 已经存在
                         if (icons.length == 1) {
                             list.push({
@@ -285,73 +286,96 @@ router.post('/batch_upload', function (req, res) {
         }
         else {
             var userId = result[0].dataValues.id;
-            var existedList = [];
+            // var existedList = [];
             // 对 svgList 进行处理
+            var count = 0; // 计数用
             for (var i = 0; i < uploadFileNum; i ++) {
-                svgList[i].name = decodeURIComponent(svgList[i].name);
-                svgList[i].content = decodeURIComponent(svgList[i].content);
-                if (svgList[i].content == null || svgList[i].content == undefined) {
-                    res.json({
-                        "status": 400,
-                        "msg": "上传文件错误",
-                        "svgName": svgList[i].name
-                    });
-                    return -1;
-                }
-                else {
-                    // 检测旧版本 svg 的存在
-                    if (svgList[i].version > 0) {
-                        existedList.push({
-                            userId: userId,
-                            name: svgList[i].name,
-                            version: svgList[i].version
+                (function (index) {
+                    svgList[i].name = decodeURIComponent(svgList[index].name);
+                    svgList[i].content = decodeURIComponent(svgList[index].content);
+                    if (svgList[index].content == null || svgList[index].content == undefined) {
+                        res.json({
+                            "status": 400,
+                            "msg": "上传文件错误",
+                            "svgName": svgList[index].name
+                        });
+                        return -1;
+                    }
+                    else {
+                        // 服务器去数据库查该图标的所有版本
+                        models.Icon.findAll({
+                            where: {
+                                name: svgList[index].name,
+                                projectId: svgList[index].projectId
+                            }
+                        }).then(function (icon) {
+                            if (icon.length == 0) {
+                                // 之前没有该图标,直接插入
+                                svgo.optimize(svgList[index].content, function (svg) {
+                                    models.Icon.create({
+                                        name: svgList[index].name,
+                                        author: svgList[index].author,
+                                        online: true, // 上传默认图标上线
+                                        content: svg.data,
+                                        projectId: svgList[index].projectId,
+                                        categoryId: svgList[index].categoryId,
+                                        UserId: userId,
+                                        remarks: svgList[index].remarks,
+                                        version: 1,
+                                        experienceVersion: false
+                                    }).then(function () {
+                                        res.json({
+                                            "status": 200,
+                                            "msg": 'success'
+                                        });
+                                    });
+                                });
+                            }
+                            else {
+                                // 找到最新线上版本
+                                models.Icon.findOne({
+                                    where: {
+                                        name: svgList[index].name,
+                                        projectId: svgList[index].projectId,
+                                        online: true
+                                    }
+                                }).then(function (item) {
+                                    // 之前有该图标,则旧版本先下线,再插入新版本
+                                    models.Icon.update({ online: false }, {
+                                        where: {
+                                            name: icon[0].dataValues.name,
+                                            projectId: icon[0].dataValues.projectId
+                                        }
+                                    }).then(function (){
+                                        svgo.optimize(svgList[index].content, function (svg) {
+                                            models.Icon.create({
+                                                name: svgList[index].name,
+                                                author: svgList[index].author,
+                                                online: true, // 上传默认图标上线
+                                                content: svg.data,
+                                                projectId: svgList[index].projectId,
+                                                categoryId: svgList[index].categoryId,
+                                                UserId: userId,
+                                                remarks: svgList[index].remarks,
+                                                version: item.dataValues.version + 1,
+                                                experienceVersion: false
+                                            }).then(function () {
+                                                count ++;
+                                                if (count == uploadFileNum) {
+                                                    res.json({
+                                                        "status": 200,
+                                                        "msg": 'success'
+                                                    });
+                                                }
+                                            });
+                                        });
+                                    });
+                                });
+                            }
                         });
                     }
-                    svgo.optimize(svgList[i].content, function (result) {
-                        svgList[i].content = result.data;
-                        svgList[i].version = svgList[i].version + 1;
-                        svgList[i]['online'] = true;
-                        svgList[i]['UserId'] = userId;
-                        svgList[i]['experienceVersion'] = false;
-                    });
-                }
+                })(i);
             }
-
-            models.Icon.bulkCreate(svgList).then(function () {
-                if (existedList.length > 1) {
-                    // 旧版本下线
-                    for (var i = 0; i < existedList.length; i ++) {
-                        var count = 0; // 计数用
-                        (function (i) {
-                            models.Icon.update({ online: false }, {
-                                where: {
-                                    UserId: existedList[i].userId,
-                                    name: existedList[i].name,
-                                    version: existedList[i].version
-                                }
-                            }).then(function (){
-
-                                count ++;
-
-                                if (count == existedList.length) {
-                                    // console.log('batch upload suc');
-                                    res.json({
-                                        "status": 200,
-                                        "msg": 'success'
-                                    });
-                                }
-                            });
-                        })(i);
-                    }
-                }
-                else {
-                    // console.log('batch upload suc');
-                    res.json({
-                        "status": 200,
-                        "msg": 'success'
-                    });
-                }
-            });
         }
     });
 });
