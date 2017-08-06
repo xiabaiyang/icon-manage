@@ -946,6 +946,7 @@ router.post('/queryIconByProId', function (req, res, next) {
                     var iconList = [];
                     for (var item in result) {
                         var value = result[item].dataValues;
+                        console.log(value);
                         iconList.push({
                             name: value.name,
                             author: value.author,
@@ -953,7 +954,7 @@ router.post('/queryIconByProId', function (req, res, next) {
                             projectId: value.projectId,
                             categoryId: value.categoryId,
                             remarks: value.remarks,
-                            version: value.version
+                            version: value.curVersion
                         });
                     }
                     res.json({
@@ -1018,7 +1019,7 @@ router.post('/queryIconByCateId', function (req, res, next) {
                             projectId: value.projectId,
                             categoryId: value.categoryId,
                             remarks: value.remarks,
-                            version: value.version
+                            version: value.curVersion
                         });
                     }
                     res.json({
