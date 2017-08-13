@@ -21,6 +21,11 @@ module.exports = function (sequelize, DataTypes) {
             type: DataTypes.STRING,
             allowNull: true,
             unique: true
+        },
+        online: {
+            type: DataTypes.BOOLEAN,
+            allowNull: true,
+            unique: false
         }
     }, {
         classMethods: {

@@ -595,19 +595,17 @@ router.post('/login', function (req, res, next) {
             }
         }).then(function (result) {
             if (result.length == 0) { // 用户不存在
-                var response = {
+                res.json({
                     "status": 400,
                     "msg": '用户不存在'
-                };
-                res.json(response);
+                });
             }
             else { // 用户存在
-                var response = {
+                res.json({
                     "status": 200,
                     "msg": '登录成功',
                     sig: sig
-                };
-                res.json(response);
+                });
             }
         });
     }
@@ -651,7 +649,8 @@ router.post('/createProject', function (req, res, next) {
                 proName: proName,
                 ownerId: result[0].dataValues.id,
                 ownerName: result[0].dataValues.userName,
-                invitedKey: invitedKey
+                invitedKey: invitedKey,
+                online: true // 后续可能需要对项目进行判重
             }).then(function (data) {
                 // 创建项目后,自己自动加入该项目
                 models.ProjectMember.create({
@@ -665,6 +664,59 @@ router.post('/createProject', function (req, res, next) {
                         "invitedKey": invitedKey
                     });
                 });
+            });
+        }
+    });
+});
+
+// 删除项目(下线)
+router.post('/deleteProject', function (req, res, next) {
+    var sig = req.body.sig;
+    var proName = req.body.projectname;
+
+    if (!sig || !proName) {
+        res.json({
+            "status": 400,
+            "msg": "缺少参数"
+        });
+        return -1;
+    }
+
+    models.User.findAll({
+        where: {
+            encryptedPassword: sig
+        }
+    }).then(function (result) {
+        if (result.length == 0) {
+            res.json({
+                "status": 400,
+                "msg": '用户不存在'
+            });
+        }
+        else {
+            models.Project.findOne({
+                where: {
+                    proName: proName
+                }
+            }).then(function (result) {
+                if (result) {
+                    models.Project.update({ online: false }, {
+                        where: {
+                            proName: proName
+                        }
+                    }).then(function () {
+                        res.json({
+                            "status": 200,
+                            "msg": 'succ'
+                        });
+                    });
+                }
+                else {
+                    res.json({
+                        "status": 400,
+                        "msg": '项目不存在'
+                    });
+                }
             });
         }
     });
@@ -713,7 +765,8 @@ router.post('/createCategory', function (req, res, next) {
                     var projectId = result[0].dataValues.id;
                     models.Category.create({
                         categoryName: categoryName,
-                        ProjectId: projectId
+                        ProjectId: projectId,
+                        online: true // 后续可能需要对类目进行判重
                     }).then(function (data) {
                         var response = {
                             "status": 200,
@@ -721,6 +774,59 @@ router.post('/createCategory', function (req, res, next) {
                             "categoryId": data.dataValues.id
                         };
                         res.json(response);
+                    });
+                }
+            });
+        }
+    });
+});
+
+// 删除分类(下线)
+router.post('/deleteCategory', function (req, res, next) {
+    var sig = req.body.sig;
+    var cateName = req.body.categoryname;
+
+    if (!sig || !cateName) {
+        res.json({
+            "status": 400,
+            "msg": "缺少参数"
+        });
+        return -1;
+    }
+
+    models.User.findAll({
+        where: {
+            encryptedPassword: sig
+        }
+    }).then(function (result) {
+        if (result.length == 0) {
+            res.json({
+                "status": 400,
+                "msg": '用户不存在'
+            });
+        }
+        else {
+            models.Category.findOne({
+                where: {
+                    categoryName: cateName
+                }
+            }).then(function (result) {
+                if (result) {
+                    models.Category.update({ online: false }, {
+                        where: {
+                            categoryName: cateName
+                        }
+                    }).then(function () {
+                        res.json({
+                            "status": 200,
+                            "msg": 'succ'
+                        });
+                    });
+                }
+                else {
+                    res.json({
+                        "status": 400,
+                        "msg": '类目不存在'
                     });
                 }
             });
@@ -849,36 +955,46 @@ router.post('/queryProject', function (req, res, next) {
                     async.each(projects, function (projectItem, callback) {
                         models.Project.findAll({
                             where: {
-                                id: projectItem.dataValues.projectId
+                                id: projectItem.dataValues.projectId,
+                                online: true
                             }
                         }).then(function (data) {
-                            data.forEach(function (value, index, array) {
-                                var projectId = value.dataValues.id;
-                                var projectName = value.dataValues.proName;
-                                var invitedKey = value.dataValues.invitedKey;
+                            if (data.length != 0) {
+                                data.forEach(function (value, index, array) {
+                                    var projectId = value.dataValues.id;
+                                    var projectName = value.dataValues.proName;
+                                    var invitedKey = value.dataValues.invitedKey;
 
-                                models.Category.findAll({
-                                    where: {
-                                        ProjectId: projectId
-                                    }
-                                }).then(function (categorys) {
-                                    var categoryList = categorys.map(function (categoryItem) {
-                                        return {
-                                            categoryId: categoryItem.dataValues.id,
-                                            categoryName: categoryItem.dataValues.categoryName
+                                    models.Category.findAll({
+                                        where: {
+                                            ProjectId: projectId,
+                                            online: true
                                         }
+                                    }).then(function (categorys) {
+                                        if (categorys.length != 0) {
+                                            var categoryList = categorys.map(function (categoryItem) {
+                                                return {
+                                                    categoryId: categoryItem.dataValues.id,
+                                                    categoryName: categoryItem.dataValues.categoryName
+                                                }
+                                            });
+                                            list.push({
+                                                projectId: projectId,
+                                                projectName: projectName,
+                                                invitedKey: invitedKey,
+                                                categoryList: categoryList
+                                            });
+                                        }
+                                        callback();
                                     });
-                                    list.push({
-                                        projectId: projectId,
-                                        projectName: projectName,
-                                        invitedKey: invitedKey,
-                                        categoryList: categoryList
-                                    });
-                                    callback();
                                 });
-                            });
+                            }
+                            else {
+                                callback();
+                            }
                         });
                     }, function (err) {
+                        console.log(list);
                         if (err) {
                             res.json({
                                 "status": 400,

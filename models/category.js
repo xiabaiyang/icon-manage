@@ -6,6 +6,11 @@ module.exports = function (sequelize, DataTypes) {
             type: DataTypes.STRING,
             allowNull: false,
             unique: false
+        },
+        online: {
+            type: DataTypes.BOOLEAN,
+            allowNull: true,
+            unique: false
         }
     }, {
         classMethods: {
