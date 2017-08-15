@@ -985,6 +985,14 @@ router.post('/queryProject', function (req, res, next) {
                                                 categoryList: categoryList
                                             });
                                         }
+                                        else {
+                                            list.push({
+                                                projectId: projectId,
+                                                projectName: projectName,
+                                                invitedKey: invitedKey,
+                                                categoryList: []
+                                            });
+                                        }
                                         callback();
                                     });
                                 });
