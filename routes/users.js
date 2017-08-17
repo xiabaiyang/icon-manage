@@ -4,6 +4,7 @@ var models = require('../models');
 var express = require('express');
 var sequelize = require('sequelize');
 var async = require('async');
+var rimraf = require('rimraf');
 var router = express.Router();
 
 var upload = multer({dest: '/tmp/'});
@@ -1264,6 +1265,46 @@ router.post('/uploadHtml', upload.single('image'), function (req, res , next) {
             "msg": '解压失败'
         });
     }
+});
+
+/**
+ * 删除上传文件夹
+ */
+router.post('/deleteHtml', function (req, res , next) {
+    var dirName = req.body.dirname;
+    var rootDir = '/var/www/html/';
+
+    if (!dirName) {
+        res.json({
+            "status": 400,
+            "msg": '参数错误'
+        });
+    }
+
+    fs.exists(rootDir + dirName, function (exists) {
+        if (exists) {
+            rimraf(rootDir + dirName, function (err) {
+                if (!err) {
+                    res.json({
+                        "status": 200,
+                        "msg": '删除成功'
+                    });
+                } else {
+                    console.log('err:' + err);
+                    res.json({
+                        "status": 500,
+                        "msg": '删除失败'
+                    });
+                }
+            });
+            console.log('end');
+        } else {
+            res.json({
+                "status": 400,
+                "msg": '文件夹不存在'
+            });
+        }
+    });
 });
 
 // 根据图标 name 查询所有版本的图标信息
