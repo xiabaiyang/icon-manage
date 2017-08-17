@@ -1051,10 +1051,9 @@ router.post('/queryIconByProId', function (req, res, next) {
         else {
             // 相同 name 的图标返回当前 version 最大的那个
             models.Icon.findAll({
-                attributes: ['name', 'author', 'content', 'projectId', 'categoryId', 'remarks', [sequelize.fn('max', sequelize.col('version')), 'curVersion']],
-                group: 'name',
                 where: {
                     projectId: projectId,
+                    online: true,
                     experienceVersion: false
                 }
             }).then(function (result) {
@@ -1125,10 +1124,10 @@ router.post('/queryIconByCateId', function (req, res, next) {
         }
         else {
             models.Icon.findAll({
-                attributes: ['name', 'author', 'content', 'projectId', 'categoryId', 'remarks', [sequelize.fn('max', sequelize.col('version')), 'curVersion']],
-                group: 'name',
                 where: {
                     categoryId: categoryId,
+                    projectId: projectId,
+                    online: true,
                     experienceVersion: false
                 }
             }).then(function (result) {
