@@ -1058,7 +1058,12 @@ router.post('/queryIconByProId', function (req, res, next) {
                     experienceVersion: false
                 }
             }).then(function (result) {
+                console.log('result.length:');
+                console.log(result.length);
+
+                console.log('result:');
                 console.log(result);
+
                 if (result.length == 0) {
                     res.json({
                         "status": 200,
@@ -1069,7 +1074,6 @@ router.post('/queryIconByProId', function (req, res, next) {
                     var iconList = [];
                     for (var item in result) {
                         var value = result[item].dataValues;
-                        console.log(value);
                         iconList.push({
                             name: value.name,
                             author: value.author,
@@ -1080,6 +1084,9 @@ router.post('/queryIconByProId', function (req, res, next) {
                             version: value.curVersion
                         });
                     }
+                    console.log('iconList:');
+                    console.log(iconList);
+
                     res.json({
                         "status": 200,
                         "msg": 'succ',
