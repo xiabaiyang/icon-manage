@@ -1099,6 +1099,7 @@ router.post('/queryIconByProId', function (req, res, next) {
 
 // 根据 categoryId 查询 icon
 router.post('/queryIconByCateId', function (req, res, next) {
+    var projectId = req.body.projectid;
     var categoryId = req.body.categoryid;
     var sig = req.body.sig;
 
