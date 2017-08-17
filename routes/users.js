@@ -1058,12 +1058,8 @@ router.post('/queryIconByProId', function (req, res, next) {
                     experienceVersion: false
                 }
             }).then(function (result) {
-                console.log('result.length:');
-                console.log(result.length);
-
                 console.log('result:');
                 console.log(result);
-
                 if (result.length == 0) {
                     res.json({
                         "status": 200,
@@ -1081,11 +1077,9 @@ router.post('/queryIconByProId', function (req, res, next) {
                             projectId: value.projectId,
                             categoryId: value.categoryId,
                             remarks: value.remarks,
-                            version: value.curVersion
+                            version: value.version
                         });
                     }
-                    console.log('iconList:');
-                    console.log(iconList);
 
                     res.json({
                         "status": 200,
@@ -1150,7 +1144,7 @@ router.post('/queryIconByCateId', function (req, res, next) {
                             projectId: value.projectId,
                             categoryId: value.categoryId,
                             remarks: value.remarks,
-                            version: value.curVersion
+                            version: value.version
                         });
                     }
                     res.json({
