@@ -1058,6 +1058,7 @@ router.post('/queryIconByProId', function (req, res, next) {
                     experienceVersion: false
                 }
             }).then(function (result) {
+                console.log(result);
                 if (result.length == 0) {
                     res.json({
                         "status": 200,
@@ -1235,7 +1236,6 @@ router.post('/uploadHtml', upload.single('image'), function (req, res , next) {
     var zip = new AdmZip(req.file.path);
 
     try {
-
         zip.extractAllTo('/var/www/html/' + randomDir + '/', true);
         imagemin([destination + '/*.{jpg,png}'], 'build/images', {
             plugins: [
