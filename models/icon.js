@@ -27,11 +27,11 @@ module.exports = function (sequelize, DataTypes) {
             allowNull: false,
             unique: false
         },
-        categoryId: {
-            type: DataTypes.INTEGER,
-            allowNull: false,
-            unique: false
-        },
+        // categoryId: {
+        //     type: DataTypes.INTEGER,
+        //     allowNull: false,
+        //     unique: false
+        // },
         remarks: {
             type: DataTypes.TEXT('long'),
             allowNull: true,
