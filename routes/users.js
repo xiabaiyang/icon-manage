@@ -1074,4 +1074,73 @@ router.post('/refreshKey', function (req, res, next) {
     });
 });
 
+/**
+ * 跳转页面,下载 icon 的 zip 压缩包
+ */
+router.get('/downloadZip', function (req, res, next) {
+    var sig = req.query.sig;
+    var svgIds = JSON.parse(req.query.id);
+    var remark = req.query.remark || '无';
+    var zipDir = '/var/www/zip/';
+    var zipAddr = zipDir + Math.random().toString(36).slice(2, 8) + '.zip';
+
+    if (!sig || !svgIds) {
+        res.json({
+            "status": 400,
+            "msg": "缺少参数"
+        });
+        return -1;
+    }
+
+    models.User.findAll({
+        where: {
+            encryptedPassword: sig
+        }
+    }).then(function(user) {
+        if (user.length == 0) { // 用户不存在
+            res.json({
+                "status": 400,
+                "msg": '用户不存在'
+            });
+        }
+        else {
+            var userId = user[0].dataValues.id;
+            var zip = new AdmZip();
+            async.each(svgIds, function (id, callback) {
+                models.Icon.findOne({
+                    where: {
+                        UserId: userId,
+                        id: id,
+                        online: true
+                    }
+                }).then(function (result) {
+                    // 图标不存在时, result 为 null
+                    if (result) {
+                        try {
+                            zip.addFile(result.dataValues.name, new Buffer(result.dataValues.content));
+                            zip.writeZip(zipAddr);
+                            callback();
+                        } catch (err) {
+                            callback('zip fail');
+                        }
+                    }
+                });
+            }, function (err) {
+                if (err) {
+                    res.json({
+                        "status": 400,
+                        "msg": err
+                    });
+                }
+                else {
+                    res.render('downloadZip', {
+                        remark: remark,
+                        link: zipAddr
+                    });
+                }
+            });
+        }
+    });
+});
+
 module.exports = router;
