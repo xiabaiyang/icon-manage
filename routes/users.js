@@ -62,7 +62,7 @@ router.post('/version_check', function (req, res) {
                 }).then(function(icons) {
                     // 已经存在,返回当前版本号,不存在,返回版本号为 0,方便后续覆盖
                     list.push({
-                        id: icons[0].dataValues.id,
+                        id: icons.length == 1 ? icons[0].dataValues.id : -1,
                         svgName: svgName,
                         version: icons.length == 1 ? icons[0].dataValues.version : 0
                     });
@@ -72,7 +72,7 @@ router.post('/version_check', function (req, res) {
                 if(err) {
                     res.json({
                         "status": 400,
-                        "msg": 'fail'
+                        "msg": err
                     });
                 } else {
                     res.json({
@@ -999,6 +999,7 @@ router.post('/deleteHtml', function (req, res , next) {
             "status": 400,
             "msg": '参数错误'
         });
+        return -1;
     }
 
     fs.exists(rootDir + dirName, function (exists) {
