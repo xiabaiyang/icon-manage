@@ -1081,8 +1081,8 @@ router.get('/downloadZip', function (req, res, next) {
     var sig = req.query.sig;
     var svgIds = JSON.parse(req.query.id);
     var remark = req.query.remark || '无';
-    var zipDir = '/var/www/zip/';
-    var zipAddr = zipDir + Math.random().toString(36).slice(2, 8) + '.zip';
+    var zipDir = '/var/www/html/iconZip/';
+    var zipName = Math.random().toString(36).slice(2, 8) + '.zip';
 
     if (!sig || !svgIds) {
         res.json({
@@ -1118,7 +1118,7 @@ router.get('/downloadZip', function (req, res, next) {
                     if (result) {
                         try {
                             zip.addFile(result.dataValues.name, new Buffer(result.dataValues.content));
-                            zip.writeZip(zipAddr);
+                            zip.writeZip(zipDir + zipName);
                             callback();
                         } catch (err) {
                             callback('zip fail');
@@ -1135,7 +1135,7 @@ router.get('/downloadZip', function (req, res, next) {
                 else {
                     res.render('downloadZip', {
                         remark: remark,
-                        link: zipAddr
+                        link: 'http:123.207.94.56/iconZip/' + zipName
                     });
                 }
             });
