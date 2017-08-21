@@ -1117,7 +1117,8 @@ router.get('/downloadZip', function (req, res, next) {
                     // 图标不存在时, result 为 null
                     if (result) {
                         try {
-                            zip.addFile(result.dataValues.name, new Buffer(result.dataValues.content));
+                            var svgName = result.dataValues.name.indexOf('.svg') == 1 ? result.dataValues.name : result.dataValues.name + '.svg';
+                            zip.addFile(svgName, new Buffer(result.dataValues.content));
                             zip.writeZip(zipDir + zipName);
                             callback();
                         } catch (err) {
@@ -1135,7 +1136,7 @@ router.get('/downloadZip', function (req, res, next) {
                 else {
                     res.render('downloadZip', {
                         remark: remark,
-                        link: 'http:123.207.94.56/iconZip/' + zipName
+                        link: 'http://123.207.94.56/iconZip/' + zipName
                     });
                 }
             });
