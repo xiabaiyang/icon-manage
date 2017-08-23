@@ -1146,8 +1146,11 @@ router.post('/refreshKey', function (req, res, next) {
  */
 router.get('/downloadZip', function (req, res, next) {
     var sig = req.query.sig;
+    var projectId = req.query.projectid; // 后续做权限验证
+
     var svgIds = JSON.parse(req.query.id);
     var remark = req.query.remark || '无';
+
     var zipDir = '/var/www/html/iconZip/';
     var svgZipName = Math.random().toString(36).slice(2, 8) + '.zip';
     var pngZipName = Math.random().toString(36).slice(2, 8) + '.zip';
@@ -1176,7 +1179,6 @@ router.get('/downloadZip', function (req, res, next) {
             var svgZip = new AdmZip();
             var pngZip = new AdmZip();
             async.each(svgIds, function (id, callback) {
-                console.log('id:' + id);
                 models.Icon.findOne({
                     where: {
                         UserId: userId,
@@ -1186,57 +1188,56 @@ router.get('/downloadZip', function (req, res, next) {
                 }).then(function (result) {
                     // 图标不存在时, result 为 null
                     if (result) {
-                        console.log('result: ok');
                         try {
                             var svgName = result.dataValues.name.indexOf('.svg') != -1 ? result.dataValues.name : result.dataValues.name + '.svg';
                             var pngName = result.dataValues.name.indexOf('.svg') != -1 ? result.dataValues.name.replace('.svg', '.png') : result.dataValues.name + '.png';
+                            var svgBuff = new Buffer(result.dataValues.content);
 
                             async.series(
                                 [
                                     // 压缩 svg
                                     function(cb) {
-                                        svgZip.addFile(svgName, new Buffer(result.dataValues.content));
+                                        svgZip.addFile(svgName, svgBuff);
                                         svgZip.writeZip(zipDir + svgZipName);
                                         cb(null);
                                     },
                                     // 压缩 png
                                     function(cb) {
                                         // svg 转换成 png
-                                        svg2png(new Buffer(result.dataValues.content))
+                                        svg2png(svgBuff)
                                             .then(function (buffer) {
                                                 pngZip.addFile(pngName, buffer);
                                                 pngZip.writeZip(zipDir + pngZipName);
                                                 callback();
+                                                cb(null);
                                             })
                                             .catch(function (err) {
                                                 callback(err);
+                                                cb(null);
                                             });
-                                        cb(null);
                                     }
                                 ],
                                 function(err, results) {
                                     // console.log(results);
-                                });
+                                }
+                            );
                         } catch (err) {
-                            callback('zip fail');
+                            callback(err);
                         }
+                    }
+                    else {
+                        callback('id为' + id + '的图标不存在');
                     }
                 });
             }, function (err) {
-                console.log('response: ok');
                 if (err) {
-                    res.json({
-                        "status": 400,
-                        "msg": err
-                    });
+                    console.log(err);
                 }
-                else {
-                    res.render('downloadZip', {
-                        remark: remark,
-                        svgLink: 'http://123.207.94.56/iconZip/' + svgZipName,
-                        pngLink: 'http://123.207.94.56/iconZip/' + pngZipName
-                    });
-                }
+                res.render('downloadZip', {
+                    remark: remark,
+                    svgLink: 'http://123.207.94.56/iconZip/' + svgZipName,
+                    pngLink: 'http://123.207.94.56/iconZip/' + pngZipName
+                });
             });
         }
     });
