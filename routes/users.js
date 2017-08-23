@@ -14,6 +14,9 @@ var path = require('path');
 var crypto = require('crypto');
 var AdmZip = require('adm-zip');
 
+const pfs = require("pn/fs");
+const svg2png = require("svg2png");
+
 const imagemin = require('imagemin');
 const imageminJpegtran = require('imagemin-jpegtran');
 const imageminPngquant = require('imagemin-pngquant');
@@ -583,6 +586,70 @@ router.post('/deleteProject', function (req, res, next) {
 });
 
 /**
+ * 图标下线
+ */
+router.post('/deleteIcon', function (req, res, next) {
+    var sig = req.body.sig;
+    var iconIdList = JSON.parse(req.body.list); // [1, 2, 3]
+
+    if (!sig || !iconIdList) {
+        res.json({
+            "status": 400,
+            "msg": "缺少参数"
+        });
+        return -1;
+    }
+
+    models.User.findAll({
+        where: {
+            encryptedPassword: sig
+        }
+    }).then(function (result) {
+        if (result.length == 0) {
+            res.json({
+                "status": 400,
+                "msg": '用户不存在'
+            });
+        }
+        else {
+            async.each(iconIdList, function (id, callback) {
+                models.Icon.findOne({
+                    where: {
+                        id: id
+                    }
+                }).then(function (result) {
+                    if (result) {
+                        models.Icon.update({ online: false }, {
+                            where: {
+                                id: id
+                            }
+                        }).then(function () {
+                            callback();
+                        });
+                    }
+                    else {
+                        callback('图标不存在');
+                    }
+                });
+            }, function (err) {
+                if (err) {
+                    res.json({
+                        "status": 400,
+                        "msg": err
+                    });
+                }
+                else {
+                    res.json({
+                        "status": 200,
+                        "msg": 'success'
+                    });
+                }
+            });
+        }
+    });
+});
+
+/**
  * 项目添加成员
  */
 router.post('/addMember', function (req, res, next) {
@@ -1075,14 +1142,15 @@ router.post('/refreshKey', function (req, res, next) {
 });
 
 /**
- * 跳转页面,下载 icon 的 zip 压缩包
+ * 跳转页面,下载 icon 的 zip 压缩包(包括 svg 和 png)
  */
 router.get('/downloadZip', function (req, res, next) {
     var sig = req.query.sig;
     var svgIds = JSON.parse(req.query.id);
     var remark = req.query.remark || '无';
     var zipDir = '/var/www/html/iconZip/';
-    var zipName = Math.random().toString(36).slice(2, 8) + '.zip';
+    var svgZipName = Math.random().toString(36).slice(2, 8) + '.zip';
+    var pngZipName = Math.random().toString(36).slice(2, 8) + '.zip';
 
     if (!sig || !svgIds) {
         res.json({
@@ -1105,7 +1173,8 @@ router.get('/downloadZip', function (req, res, next) {
         }
         else {
             var userId = user[0].dataValues.id;
-            var zip = new AdmZip();
+            var svgZip = new AdmZip();
+            var pngZip = new AdmZip();
             async.each(svgIds, function (id, callback) {
                 models.Icon.findOne({
                     where: {
@@ -1117,10 +1186,35 @@ router.get('/downloadZip', function (req, res, next) {
                     // 图标不存在时, result 为 null
                     if (result) {
                         try {
-                            var svgName = result.dataValues.name.indexOf('.svg') == 1 ? result.dataValues.name : result.dataValues.name + '.svg';
-                            zip.addFile(svgName, new Buffer(result.dataValues.content));
-                            zip.writeZip(zipDir + zipName);
-                            callback();
+                            var svgName = result.dataValues.name.indexOf('.svg') != -1 ? result.dataValues.name : result.dataValues.name + '.svg';
+                            var pngName = result.dataValues.name.indexOf('.svg') != -1 ? result.dataValues.name.replace('.svg', '.png') : result.dataValues.name + '.png';
+
+                            async.series(
+                                [
+                                    // 压缩 svg
+                                    function(cb) {
+                                        svgZip.addFile(svgName, new Buffer(result.dataValues.content));
+                                        svgZip.writeZip(zipDir + svgZipName);
+                                        cb(null);
+                                    },
+                                    // 压缩 png
+                                    function(cb) {
+                                        // svg 转换成 png
+                                        svg2png(new Buffer(result.dataValues.content))
+                                            .then(function (buffer) {
+                                                pngZip.addFile(pngName, buffer);
+                                                pngZip.writeZip(zipDir + pngZipName);
+                                                callback();
+                                            })
+                                            .catch(function (err) {
+                                                callback(err);
+                                            });
+                                        cb(null);
+                                    }
+                                ],
+                                function(err, results) {
+                                    // console.log(results);
+                                });
                         } catch (err) {
                             callback('zip fail');
                         }
@@ -1136,7 +1230,8 @@ router.get('/downloadZip', function (req, res, next) {
                 else {
                     res.render('downloadZip', {
                         remark: remark,
-                        link: 'http://123.207.94.56/iconZip/' + zipName
+                        svgLink: 'http://123.207.94.56/iconZip/' + svgZipName,
+                        pngLink: 'http://123.207.94.56/iconZip/' + pngZipName
                     });
                 }
             });

@@ -7,6 +7,6 @@ a {
   color: #00B7FF;
 }
 
-.download {
-
+.svg-download, .png-download {
+  display: block;
 }
