@@ -1176,6 +1176,7 @@ router.get('/downloadZip', function (req, res, next) {
             var svgZip = new AdmZip();
             var pngZip = new AdmZip();
             async.each(svgIds, function (id, callback) {
+                console.log('id:' + id);
                 models.Icon.findOne({
                     where: {
                         UserId: userId,
@@ -1185,6 +1186,7 @@ router.get('/downloadZip', function (req, res, next) {
                 }).then(function (result) {
                     // 图标不存在时, result 为 null
                     if (result) {
+                        console.log('result: ok');
                         try {
                             var svgName = result.dataValues.name.indexOf('.svg') != -1 ? result.dataValues.name : result.dataValues.name + '.svg';
                             var pngName = result.dataValues.name.indexOf('.svg') != -1 ? result.dataValues.name.replace('.svg', '.png') : result.dataValues.name + '.png';
@@ -1221,6 +1223,7 @@ router.get('/downloadZip', function (req, res, next) {
                     }
                 });
             }, function (err) {
+                console.log('response: ok');
                 if (err) {
                     res.json({
                         "status": 400,
