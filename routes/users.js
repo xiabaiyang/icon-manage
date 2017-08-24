@@ -1345,6 +1345,8 @@ router.get('/downloadZip', function (req, res, next) {
     var remark = req.query.remark;
     var svgZipName = req.query.svgname;
     var pngZipName = req.query.sngname;
+    console.log('svgZipName:' + svgZipName);
+    console.log('pngZipName:' + pngZipName);
 
     res.render('downloadZip', {
         remark: remark,
