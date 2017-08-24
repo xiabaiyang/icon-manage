@@ -952,39 +952,109 @@ router.post('/queryIconByName', function (req, res, next) {
         }
         else {
             var userId = user[0].dataValues.id;
-            models.Icon.findAll({
+
+            models.Project.findOne({
                 where: {
-                    UserId: userId,
-                    projectId: projectId,
-                    name: svgName
+                    id: projectId
                 }
             }).then(function (result) {
-                console.log(result);
-                if (result.length == 0) {
+                if (result == null) {
                     res.json({
                         "status": 400,
-                        "msg": '图标不存在'
+                        "msg": '项目不存在'
                     });
                 }
                 else {
-                    var iconList = [];
-                    for (var item in result) {
-                        var value = result[item].dataValues;
-                        iconList.push({
-                            id: value.id,
-                            name: value.name,
-                            author: value.author,
-                            content: value.content,
-                            projectId: value.projectId,
-                            remarks: value.remarks,
-                            version: value.version
+                    // 自己创建的项目
+                    if (result.dataValues.ownerId == userId) {
+                        console.log('自己的项目');
+                        models.Icon.findAll({
+                            where: {
+                                UserId: userId,
+                                projectId: projectId,
+                                name: svgName
+                            }
+                        }).then(function (result) {
+                            if (result.length == 0) {
+                                res.json({
+                                    "status": 400,
+                                    "msg": '图标不存在'
+                                });
+                            }
+                            else {
+                                var iconList = [];
+                                for (var item in result) {
+                                    var value = result[item].dataValues;
+                                    iconList.push({
+                                        id: value.id,
+                                        name: value.name,
+                                        author: value.author,
+                                        content: value.content,
+                                        projectId: value.projectId,
+                                        remarks: value.remarks,
+                                        version: value.version
+                                    });
+                                }
+                                res.json({
+                                    "status": 200,
+                                    "msg": 'succ',
+                                    "list": iconList
+                                });
+                            }
                         });
                     }
-                    res.json({
-                        "status": 200,
-                        "msg": 'succ',
-                        "list": iconList
-                    });
+                    else {
+                        console.log('加入的项目');
+                        // 查询是否是自己加入的项目
+                        models.ProjectMember.findOne({
+                            where: {
+                                UserId: userId,
+                                ProjectId: projectId
+                            }
+                        }).then(function (result) {
+                            if (result.length == 0) {
+                                res.json({
+                                    "status": 200,
+                                    "msg": '用户暂未创建/加入该项目'
+                                });
+                            }
+                            else {
+                                models.Icon.findAll({
+                                    where: {
+                                        projectId: projectId,
+                                        name: svgName
+                                    }
+                                }).then(function (result) {
+                                    if (result.length == 0) {
+                                        res.json({
+                                            "status": 200,
+                                            "msg": '图标不存在'
+                                        });
+                                    }
+                                    else {
+                                        var iconList = [];
+                                        for (var item in result) {
+                                            var value = result[item].dataValues;
+                                            iconList.push({
+                                                id: value.id,
+                                                name: value.name,
+                                                author: value.author,
+                                                content: value.content,
+                                                projectId: value.projectId,
+                                                remarks: value.remarks,
+                                                version: value.version
+                                            });
+                                        }
+                                        res.json({
+                                            "status": 200,
+                                            "msg": 'succ',
+                                            "list": iconList
+                                        });
+                                    }
+                                });
+                            }
+                        });
+                    }
                 }
             });
         }
@@ -1150,6 +1220,7 @@ router.get('/downloadZip', function (req, res, next) {
 
     var svgIds = JSON.parse(req.query.id);
     var remark = req.query.remark || '无';
+    console.log('svgIds:' + svgIds);
 
     var zipDir = '/var/www/html/iconZip/';
     var svgZipName = Math.random().toString(36).slice(2, 8) + '.zip';
@@ -1179,6 +1250,7 @@ router.get('/downloadZip', function (req, res, next) {
             var svgZip = new AdmZip();
             var pngZip = new AdmZip();
             async.each(svgIds, function (id, callback) {
+                console.log('id:' + id);
                 models.Icon.findOne({
                     where: {
                         UserId: userId,
@@ -1187,6 +1259,7 @@ router.get('/downloadZip', function (req, res, next) {
                     }
                 }).then(function (result) {
                     // 图标不存在时, result 为 null
+                    console.log('result.length:' + result.length);
                     if (result) {
                         try {
                             var svgName = result.dataValues.name.indexOf('.svg') != -1 ? result.dataValues.name : result.dataValues.name + '.svg';
@@ -1226,6 +1299,7 @@ router.get('/downloadZip', function (req, res, next) {
                         }
                     }
                     else {
+                        console.log('result: null');
                         callback('id为' + id + '的图标不存在');
                     }
                 });
@@ -1233,6 +1307,10 @@ router.get('/downloadZip', function (req, res, next) {
                 if (err) {
                     console.log(err);
                 }
+                // res.json({
+                //     "status": 200,
+                //     "zipAddr": ''
+                // });
                 res.render('downloadZip', {
                     remark: remark,
                     svgLink: 'http://123.207.94.56/iconZip/' + svgZipName,
