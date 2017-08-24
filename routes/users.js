@@ -1216,7 +1216,7 @@ router.post('/refreshKey', function (req, res, next) {
  */
 router.get('/downloadZip', function (req, res, next) {
     var sig = req.query.sig;
-    var projectId = req.query.projectid; // 后续做权限验证
+    var projectId = req.query.projectid;
 
     var svgIds = JSON.parse(req.query.id);
     var remark = req.query.remark || '无';
@@ -1247,76 +1247,98 @@ router.get('/downloadZip', function (req, res, next) {
         }
         else {
             var userId = user[0].dataValues.id;
-            var svgZip = new AdmZip();
-            var pngZip = new AdmZip();
-            async.each(svgIds, function (id, callback) {
-                console.log('id:' + id);
-                models.Icon.findOne({
-                    where: {
-                        UserId: userId,
-                        id: id,
-                        online: true
-                    }
-                }).then(function (result) {
-                    // 图标不存在时, result 为 null
-                    if (result) {
-                        try {
-                            var svgName = result.dataValues.name.indexOf('.svg') != -1 ? result.dataValues.name : result.dataValues.name + '.svg';
-                            var pngName = result.dataValues.name.indexOf('.svg') != -1 ? result.dataValues.name.replace('.svg', '.png') : result.dataValues.name + '.png';
-                            var svgBuff = new Buffer(result.dataValues.content);
-                            console.log('svgName:' + svgName);
-                            console.log('pngName:' + pngName);
 
-                            async.series(
-                                [
-                                    // 压缩 svg
-                                    function(cb) {
-                                        svgZip.addFile(svgName, svgBuff);
-                                        svgZip.writeZip(zipDir + svgZipName);
-                                        cb(null);
-                                    },
-                                    // 压缩 png
-                                    function(cb) {
-                                        // svg 转换成 png
-                                        svg2png(svgBuff)
-                                            .then(function (buffer) {
-                                                pngZip.addFile(pngName, buffer);
-                                                pngZip.writeZip(zipDir + pngZipName);
-                                                callback();
-                                                cb(null);
-                                            })
-                                            .catch(function (err) {
-                                                callback(err);
-                                                cb(null);
-                                            });
-                                    }
-                                ],
-                                function(err, results) {
-                                    // console.log(results);
-                                }
-                            );
-                        } catch (err) {
-                            callback(err);
-                        }
-                    }
-                    else {
-                        console.log('result: null');
-                        callback('id为' + id + '的图标不存在');
-                    }
-                });
-            }, function (err) {
-                if (err) {
-                    console.log(err);
+            models.ProjectMember.findOne({
+                where: {
+                    UserId: userId,
+                    ProjectId: projectId
                 }
-                // res.json({
-                //     "status": 200,
-                //     "zipAddr": ''
-                // });
-                res.render('downloadZip', {
-                    remark: remark,
-                    svgLink: 'http://123.207.94.56/iconZip/' + svgZipName,
-                    pngLink: 'http://123.207.94.56/iconZip/' + pngZipName
-                });
+            }).then(function (result) {
+                if (result == null) {
+                    // 用户不在这个项目里
+                    res.json({
+                        "status": 200,
+                        "msg": '用户无法操作该项目'
+                    });
+                }
+                else {
+                    var svgZip = new AdmZip();
+                    var pngZip = new AdmZip();
+                    async.each(svgIds, function (id, callback) {
+                        console.log('id:' + id);
+                        models.Icon.findOne({
+                            where: {
+                                id: id,
+                                online: true
+                            }
+                        }).then(function (result) {
+                            // 图标不存在时, result 为 null
+                            if (result) {
+                                try {
+                                    var svgName = result.dataValues.name.indexOf('.svg') != -1 ? result.dataValues.name : result.dataValues.name + '.svg';
+                                    var pngName = result.dataValues.name.indexOf('.svg') != -1 ? result.dataValues.name.replace('.svg', '.png') : result.dataValues.name + '.png';
+                                    var svgBuff = new Buffer(result.dataValues.content);
+                                    console.log('svgName:' + svgName);
+                                    console.log('pngName:' + pngName);
+
+                                    async.series(
+                                        [
+                                            // 压缩 svg
+                                            function(cb) {
+                                                svgZip.addFile(svgName, svgBuff);
+                                                svgZip.writeZip(zipDir + svgZipName);
+                                                cb(null);
+                                            },
+                                            // 压缩 png
+                                            function(cb) {
+                                                // svg 转换成 png
+                                                svg2png(svgBuff)
+                                                    .then(function (buffer) {
+                                                        pngZip.addFile(pngName, buffer);
+                                                        pngZip.writeZip(zipDir + pngZipName);
+                                                        callback();
+                                                        cb(null);
+                                                    })
+                                                    .catch(function (err) {
+                                                        callback(err);
+                                                        cb(null);
+                                                    });
+                                            }
+                                        ],
+                                        function(err, results) {
+                                            // console.log(results);
+                                        }
+                                    );
+                                } catch (err) {
+                                    callback(err);
+                                }
+                            }
+                            else {
+                                console.log('id为' + id + '的图标不存在');
+                                callback('id为' + id + '的图标不存在');
+                            }
+                        });
+                    }, function (err) {
+                        if (err) {
+                            res.json({
+                                "status": 500,
+                                "msg": err
+                            });
+                        }
+                        else {
+                            res.json({
+                                "status": 200,
+                                "svgLink": 'http://123.207.94.56/iconZip/' + svgZipName,
+                                "pngLink": 'http://123.207.94.56/iconZip/' + pngZipName
+                            });
+                        }
+                        // res.render('downloadZip', {
+                        //     remark: remark,
+                        //     svgLink: 'http://123.207.94.56/iconZip/' + svgZipName,
+                        //     pngLink: 'http://123.207.94.56/iconZip/' + pngZipName
+                        // });
+                    });
+                }
             });
         }
     });
