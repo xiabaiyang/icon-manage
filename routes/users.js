@@ -1214,7 +1214,7 @@ router.post('/refreshKey', function (req, res, next) {
 /**
  * 跳转页面,下载 icon 的 zip 压缩包(包括 svg 和 png)
  */
-router.get('/downloadZip', function (req, res, next) {
+router.get('/createZip', function (req, res, next) {
     var sig = req.query.sig;
     var projectId = req.query.projectid;
 
@@ -1327,20 +1327,29 @@ router.get('/downloadZip', function (req, res, next) {
                         }
                         else {
                             res.json({
-                                "status": 200,
-                                "svgLink": 'http://123.207.94.56/iconZip/' + svgZipName,
-                                "pngLink": 'http://123.207.94.56/iconZip/' + pngZipName
+                                status: 200,
+                                data: {
+                                    svgZipName: svgZipName,
+                                    pngZipName: pngZipName
+                                }
                             });
                         }
-                        // res.render('downloadZip', {
-                        //     remark: remark,
-                        //     svgLink: 'http://123.207.94.56/iconZip/' + svgZipName,
-                        //     pngLink: 'http://123.207.94.56/iconZip/' + pngZipName
-                        // });
                     });
                 }
             });
         }
+    });
+});
+
+router.get('/downloadZip', function (req, res, next) {
+    var remark = req.query.remark;
+    var svgZipName = req.query.svgname;
+    var pngZipName = req.query.sngname;
+
+    res.render('downloadZip', {
+        remark: remark,
+        svgLink: 'http://123.207.94.56/iconZip/' + svgZipName,
+        pngLink: 'http://123.207.94.56/iconZip/' + pngZipName
     });
 });
 
