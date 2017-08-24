@@ -1259,12 +1259,13 @@ router.get('/downloadZip', function (req, res, next) {
                     }
                 }).then(function (result) {
                     // 图标不存在时, result 为 null
-                    console.log('result.length:' + result.length);
                     if (result) {
                         try {
                             var svgName = result.dataValues.name.indexOf('.svg') != -1 ? result.dataValues.name : result.dataValues.name + '.svg';
                             var pngName = result.dataValues.name.indexOf('.svg') != -1 ? result.dataValues.name.replace('.svg', '.png') : result.dataValues.name + '.png';
                             var svgBuff = new Buffer(result.dataValues.content);
+                            console.log('svgName:' + svgName);
+                            console.log('pngName:' + pngName);
 
                             async.series(
                                 [
