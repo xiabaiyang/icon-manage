@@ -535,9 +535,9 @@ router.post('/createProject', function (req, res, next) {
  */
 router.post('/deleteProject', function (req, res, next) {
     var sig = req.body.sig;
-    var proName = req.body.projectname;
+    var proId = req.body.projectid;
 
-    if (!sig || !proName) {
+    if (!sig || !proId) {
         res.json({
             "status": 400,
             "msg": "缺少参数"
@@ -557,26 +557,35 @@ router.post('/deleteProject', function (req, res, next) {
             });
         }
         else {
+            var userId = result[0].dataValues.id;
             models.Project.findOne({
                 where: {
-                    proName: proName
+                    id: proId
                 }
             }).then(function (result) {
                 if (result) {
-                    models.Project.update({ online: false }, {
-                        where: {
-                            proName: proName
-                        }
-                    }).then(function () {
+                    if (result.dataValues.ownerId != userId) {
                         res.json({
                             "status": 200,
-                            "msg": 'succ'
+                            "msg": '用户没有权限删除该项目'
                         });
-                    });
+                    }
+                    else {
+                        models.Project.update({ online: false }, {
+                            where: {
+                                id: proId
+                            }
+                        }).then(function () {
+                            res.json({
+                                "status": 200,
+                                "msg": 'succ'
+                            });
+                        });
+                    }
                 }
                 else {
                     res.json({
-                        "status": 400,
+                        "status": 200,
                         "msg": '项目不存在'
                     });
                 }
@@ -779,13 +788,15 @@ router.post('/queryProject', function (req, res, next) {
                         }).then(function (data) {
                             if (data.length != 0) {
                                 data.forEach(function (value, index, array) {
+                                    var ownerId = value.dataValues.ownerId;
                                     var projectId = value.dataValues.id;
                                     var projectName = value.dataValues.proName;
                                     var invitedKey = value.dataValues.invitedKey;
                                     list.push({
                                         projectId: projectId,
                                         projectName: projectName,
-                                        invitedKey: invitedKey
+                                        invitedKey: invitedKey,
+                                        isOwner: userId == ownerId ? true : false
                                     });
                                 });
                             }
@@ -1268,8 +1279,7 @@ router.get('/createZip', function (req, res, next) {
                         console.log('id:' + id);
                         models.Icon.findOne({
                             where: {
-                                id: id,
-                                online: true
+                                id: id
                             }
                         }).then(function (result) {
                             // 图标不存在时, result 为 null
