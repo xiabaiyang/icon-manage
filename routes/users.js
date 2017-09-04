@@ -1300,16 +1300,22 @@ router.get('/createZip', function (req, res, next) {
                                                         cb(null);
                                                     })
                                                     .catch(function (err) {
+                                                        console.log('1');
+                                                        console.log(err);
                                                         callback(err);
                                                         cb(null);
                                                     });
                                             }
                                         ],
                                         function(err, results) {
+                                            console.log('2');
+                                            console.log(err);
                                             // console.log(results);
                                         }
                                     );
                                 } catch (err) {
+                                    console.log('3');
+                                    console.log(err);
                                     callback(err);
                                 }
                             }
