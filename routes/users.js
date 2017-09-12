@@ -1111,6 +1111,9 @@ router.post('/uploadHtml', upload.single('image'), function (req, res , next) {
     var destinationDir = '/var/www/html/' + randomDir + '/';
     var zip = new AdmZip(req.file.path);
 
+    console.log('req.file.path:' + req.file.path);
+    console.log('req.file.originalname:' + req.file.originalname);
+
     try {
         zip.extractAllToAsync(destinationDir, true, function (info) {
             console.log('info:');
