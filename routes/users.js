@@ -1111,10 +1111,6 @@ router.post('/uploadHtml', upload.single('image'), function (req, res , next) {
     var destinationDir = '/var/www/html/' + randomDir + '/';
     var zip = new AdmZip(req.file.path);
 
-    console.log('req.file.path:' + req.file.path);
-    console.log('req.file.originalname:' + req.file.originalname);
-    console.log(req.file.path + '/' + req.file.originalname)
-
     try {
         zip.extractAllToAsync(destinationDir, true, function (info) {
             console.log('info:');
@@ -1126,6 +1122,7 @@ router.post('/uploadHtml', upload.single('image'), function (req, res , next) {
                     imageminPngquant({quality: '65-80'})
                 ]
             }).then(function (files) {
+                console.log('shit');
                 res.json({
                     "status": 200,
                     "msg": '解压完成',
