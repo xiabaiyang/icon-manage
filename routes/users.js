@@ -1109,8 +1109,7 @@ router.post('/svgExist', function (req, res, next) {
 router.post('/uploadHtml', upload.single('image'), function (req, res , next) {
     var randomDir = Math.random().toString(36).slice(2, 8);
     var destinationDir = '/var/www/html/' + randomDir + '/';
-    console.log('destinationDir:' + destinationDir);
-    var zip = new AdmZip(req.file.path + '/' + req.file.originalname);
+    var zip = new AdmZip(req.file.path);
 
     console.log('req.file.path:' + req.file.path);
     console.log('req.file.originalname:' + req.file.originalname);
