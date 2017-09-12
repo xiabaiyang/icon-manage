@@ -1108,22 +1108,23 @@ router.post('/svgExist', function (req, res, next) {
  */
 router.post('/uploadHtml', upload.single('image'), function (req, res , next) {
     var randomDir = Math.random().toString(36).slice(2, 8);
-    var destination = '/var/www/html/' + randomDir + '/' + req.file.originalname;
+    var destinationDir = '/var/www/html/' + randomDir + '/';
     var zip = new AdmZip(req.file.path);
 
     try {
-        zip.extractAllTo('/var/www/html/' + randomDir + '/', true);
-        imagemin([destination + '/*.{jpg,png}'], 'build/images', {
-            plugins: [
-                imageminJpegtran(),
-                imageminPngquant({quality: '65-80'})
-            ]
-        }).then(function (files) {
-            res.json({
-                "status": 200,
-                "msg": '解压完成',
-                "fileName": req.file.originalname,
-                "dir": randomDir
+        zip.extractAllToAsync(destinationDir, true, function () {
+            imagemin([destinationDir + '*.{jpg,png}'], 'build/images', {
+                plugins: [
+                    imageminJpegtran(),
+                    imageminPngquant({quality: '65-80'})
+                ]
+            }).then(function (files) {
+                res.json({
+                    "status": 200,
+                    "msg": '解压完成',
+                    "fileName": req.file.originalname,
+                    "dir": randomDir
+                });
             });
         });
     } catch(err) {
