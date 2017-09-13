@@ -1113,16 +1113,12 @@ router.post('/uploadHtml', upload.single('image'), function (req, res , next) {
 
     try {
         zip.extractAllToAsync(destinationDir, true, function (info) {
-            console.log('info:');
-            console.log(info);
-
-            imagemin([destinationDir + '*.{jpg,png}'], 'build/images', {
-                plugins: [
+            imagemin([destinationDir + '*.{jpg,png}'], destinationDir, {
+                use: [
                     imageminJpegtran(),
-                    imageminPngquant({quality: '65-80'})
+                    imageminPngquant({ quality: '50' })
                 ]
-            }).then(function (files) {
-                console.log('shit');
+            }).then(function (data) {
                 res.json({
                     "status": 200,
                     "msg": '解压完成',
