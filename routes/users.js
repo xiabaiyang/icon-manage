@@ -1,6 +1,7 @@
 var fs = require("fs");
 var multer = require('multer');
 var models = require('../models');
+var util = require('../util');
 var express = require('express');
 var sequelize = require('sequelize');
 var async = require('async');
@@ -11,7 +12,6 @@ var upload = multer({dest: '/tmp/'});
 var SVGO = require('svgo');
 
 var path = require('path');
-var crypto = require('crypto');
 var AdmZip = require('adm-zip');
 
 const pfs = require("pn/fs");
@@ -322,41 +322,6 @@ router.post('/register', function (req, res, next) {
     var userName = params.username;
     var password = params.password;
     var mail = params.mail;
-    // var machineCode = params.machineCode;
-    // var sig = params.sig;
-    // var privatePem = fs.readFileSync(path.join(__dirname, '..', 'config/production/rsa_private_key.pem'));
-    // var publicPem = fs.readFileSync(path.join(__dirname, '..', 'config/production/rsa_public_key.pem'));
-    // var privateKey = privatePem.toString(); // 私钥
-    // var publicKey = publicPem.toString(); // 公钥
-    //加密
-
-    /*
-     * 添加盐值的 md5 加密
-     * */
-    function hashCrypt(userName, password) {
-        var saltPassword = userName + ':' + password;
-        var md5 = crypto.createHash('md5');
-        return md5.update(saltPassword).digest('hex');
-    }
-
-    /*
-     * 获取随机盐值
-     * */
-    function getRandomSalt() {
-        return Math.random().toString().slice(2, 7);
-    }
-
-    function rsaSign(encryptedPassword, machineCode) {
-        var sign = crypto.createSign('RSA-SHA256'); // 创建签名
-        sign.update(encryptedPassword + machineCode); // 利用签名更新数据
-        return sign.sign(privateKey, 'hex');
-    }
-
-    function rsaVerify(encryptedPassword, sig) {
-        var verify = crypto.createVerify('RSA-SHA256');
-        verify.update(encryptedPassword);
-        return verify.verify(pubkey, sig, 'hex'); // true 为正确
-    }
 
     /*
     * 1. 第一次登录时,需要根据 userName 和 password 去更新 machineCode
@@ -376,7 +341,7 @@ router.post('/register', function (req, res, next) {
                 });
             }
             else { // 创建新用户
-                var encryptedPassword = hashCrypt(userName, password); // 加密的 password
+                var encryptedPassword = util.hashCrypt(userName, password); // 加密的 password
                 models.User.create({
                     userName: userName,
                     encryptedPassword: encryptedPassword,
@@ -402,78 +367,49 @@ router.post('/register', function (req, res, next) {
 /**
  * 用户登录
  */
-router.post('/login', function (req, res, next) {
-    var params = req.body;
-    var userName = params.username;
-    var password = params.password;
-    var sig = params.sig;
-
-    /*
-     * 添加盐值的 md5 加密
-     * */
-    function hashCrypt(userName, password) {
-        var saltPassword = userName + ':' + password;
-        var md5 = crypto.createHash('md5');
-        return md5.update(saltPassword).digest('hex');
-    }
+router.post('/login', async (req, res, next) => {
+    let params = req.body;
+    let userName = params.username;
+    let password = params.password;
+    let sig = params.sig;
+    let status = 200;
+    let msg = '';
 
     if (userName && password) {
-        models.User.findAll({
+        let user = await models.User.findOne({
             where: {
                 userName: userName
             }
-        }).then(function (result) {
-            if (result.length == 0) { // 用户不存在
-                res.json({
-                    "status": 400,
-                    "msg": '用户不存在'
-                });
-            }
-            else { // 用户存在
-                var sig = result[0].dataValues.encryptedPassword;
-                if (hashCrypt(userName, password) == sig) { // 密码正确
-                    res.json({
-                        "status": 200,
-                        "msg": '登录成功',
-                        "sig": sig
-                    });
-                }
-                else { // 密码错误
-                    res.json({
-                        "status": 400,
-                        "msg": '密码错误'
-                    });
-                }
-            }
         });
+
+        if (user) {
+            if (util.hashCrypt(userName, password) == user.dataValues.encryptedPassword) {
+                req.session.user = user;
+                msg = '登录成功';
+            } else {
+                msg = '密码错误';
+            }
+        } else {
+            msg = '用户不存在';
+        }
     }
     else if(sig) {
-        models.User.findAll({
+        let user = await models.User.findAll({
             where: {
                 encryptedPassword: sig
             }
-        }).then(function (result) {
-            if (result.length == 0) { // 用户不存在
-                res.json({
-                    "status": 400,
-                    "msg": '用户不存在'
-                });
-            }
-            else { // 用户存在
-                res.json({
-                    "status": 200,
-                    "msg": '登录成功',
-                    sig: sig
-                });
-            }
         });
+
+        msg = user ? '登录成功' : '用户不存在';
     }
     else {
-        res.json({
-            "status": 400,
-            "msg": '参数错误'
-        })
+        msg = '参数错误';
     }
+
+    res.json({
+        status: status,
+        msg: msg
+    });
 });
 
 /**
@@ -1112,13 +1048,13 @@ router.post('/uploadHtml', upload.single('image'), function (req, res , next) {
     var zip = new AdmZip(req.file.path);
 
     try {
-        zip.extractAllToAsync(destinationDir, true, function (info) {
+        zip.extractAllToAsync(destinationDir, true, info => {
             imagemin([destinationDir + '*.{jpg,png}'], destinationDir, {
                 use: [
                     imageminJpegtran(),
                     imageminPngquant({ quality: '50' })
                 ]
-            }).then(function (data) {
+            }).then(data => {
                 res.json({
                     "status": 200,
                     "msg": '解压完成',

@@ -3,13 +3,12 @@
 var fs = require('fs');
 var path = require('path');
 var Sequelize = require('sequelize');
-// var env = process.env.NODE_ENV || 'development';
-var env = 'production';
+var env = process.env.NODE_ENV || 'development';
 
 var configPath = path.resolve(__dirname, '../config/' + env + '/database.json');
 var config = require(configPath);
 
-var sequelize = new Sequelize(config.database, config.username, config.password, config);
+var sequelize = new Sequelize(config.database, config.user, config.password, config);
 
 var db = {};
 

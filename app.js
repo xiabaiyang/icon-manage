@@ -5,24 +5,22 @@ var path = require('path');
 var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
-// var corser = require('corser'); // 解决跨域问题
-// var cors = require('cors');
-var global = require('./config/global.json');
+var favicon = require('serve-favicon');
 
-// var env = process.env.NODE_ENV || 'development';
-var env = 'production';
-var sessionPath = path.resolve(__dirname, './config/' + env + '/session.json');
-
-// session
 var session = require('express-session'); // 创建 session 中间件
-// var MySQLStore = require('express-mysql-session')(session); // 将 session 存在 mysql 中
-// var options = require(sessionPath); // 数据库配置信息
+var MySQLStore = require('express-mysql-session')(session); // 将 session 存在 mysql 中
 
-// 路由
+var config = require('./config');
+var options = {
+    host: config.get('database.host'),
+    port: config.get('database.port'),
+    user: config.get('database.user'),
+    password: config.get('database.password'),
+    database: config.get('database.database')
+};
+
 var routes = require('./routes/index');
 var users  = require('./routes/users');
-
-// var favicon = require('serve-favicon');
 
 var app = express();
 
@@ -33,7 +31,7 @@ app.set('view engine', 'jade');
 app.set('trust proxy', 'loopback'); // 代理端口
 
 // uncomment after placing your favicon in /public
-//app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));
+// app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));
 app.use(logger('dev'));
 app.use(bodyParser.json({limit: '50mb'}));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: false }));
@@ -54,19 +52,19 @@ app.all('*',function (req, res, next) {
   }
 });
 
-// session 设置 (secret需要自动生成) 暂时不用
-// var sessionStore = new MySQLStore(options);
-// var identityKey = 'userName';
-// app.use(session({
-//     name: identityKey,
-//     secret: '1792B4344F7D80C6189E', // 用来对 session id 相关的 cookie 进行签名
-//     store: sessionStore, // 本地存储 session
-//     resave: true, // 是否每次都重新保存会话，建议 false
-//     saveUninitialized: true, // 是否自动保存未初始化的会话，建议 false
-//     cookie: {
-//         maxAge: 10 * 1000  // 有效期，单位是毫秒
-//     }
-// }));
+app.use(session({
+    name: 'session',                     // 设置 cookie 中,保存 session 的字段名称,默认为 connect.sid
+    secret: 'gPVgZmiJNs7AoveHkXgDNqjB',  // 对存放 session id 的 cookie 进行签名,计算 hash 值并放在 cookie 中,使产生的 signedCookie 防篡改
+    store: new MySQLStore(options),      // session 的存储方式
+    resave: true,                        // 是否每次都重新保存会话
+    saveUninitialized: false,            // 是否自动保存未初始化的会话
+    cookie: {                            // 设置存放 session id 的 cookie,默认为 { path: '/', httpOnly: true, secure: false, maxAge: null }
+        maxAge: 10 * 1000
+    }
+}));
+
+// genid: 产生一个新的 session_id 时，所使用的函数， 默认使用 uid2 这个 npm 包
+// rolling: 每个请求都重新设置一个 cookie，默认为 false
 
 app.use('/', routes);
 app.use('/users', users);

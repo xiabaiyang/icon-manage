@@ -1,6 +1,9 @@
 {
-  "development": {
-    "dialect": "sqlite",
-    "storage": "./db.development.sqlite"
-  }
+  "host": "127.0.0.1",
+  "port": 3306,
+  "user": "maybexia",
+  "password": "xby@ustc",
+  "dialect": "mysql",
+  "database": "icon",
+  "timezone": "+08:00"
 }
