@@ -1,91 +1,77 @@
-var fs = require("fs");
-var multer = require('multer');
-var models = require('../models');
-var util = require('../util');
-var express = require('express');
-var sequelize = require('sequelize');
-var async = require('async');
-var rimraf = require('rimraf');
-var router = express.Router();
-
-var upload = multer({dest: '/tmp/'});
-var SVGO = require('svgo');
-
-var path = require('path');
-var AdmZip = require('adm-zip');
-
+const fs = require("fs");
+const path = require('path');
+const multer = require('multer');
+const express = require('express');
+const sequelize = require('sequelize');
+const async = require('async');
+const rimraf = require('rimraf');
+const HttpStatus = require('http-status-codes');
+const upload = multer({dest: '/tmp/'});
+const SVGO = require('svgo');
+const AdmZip = require('adm-zip');
 const pfs = require("pn/fs");
 const svg2png = require("svg2png");
-
 const imagemin = require('imagemin');
 const imageminJpegtran = require('imagemin-jpegtran');
 const imageminPngquant = require('imagemin-pngquant');
 
+const models = require('../models');
+const util = require('../util');
+const config = require('../config');
+
+const router = express.Router();
+
 /**
  * 检测图标的版本号
  */
-router.post('/version_check', function (req, res) {
-    var reqParams = req.body;
-    var sig = reqParams.sig;
-    var projectId = reqParams.projectid;
-    var svgList = JSON.parse(reqParams.list);
+router.post('/version_check', async (req, res, next) => {
+    let reqParams = req.body;
+    let sig = reqParams.sig;
+    let projectId = reqParams.projectid;
+    let svgList = JSON.parse(reqParams.list);
+    let status = HttpStatus.OK;
+    let msg = '';
+    let list = [];
 
     if (!sig || !svgList || !projectId) {
-        res.json({
-            "status": 400,
-            "msg": "缺少参数"
+        status = HttpStatus.BAD_REQUEST;
+        msg = config.msg_type.PARAM_ERR;
+    } else {
+        let user = await models.User.findOne({
+            where: {
+                encryptedPassword: sig
+            }
         });
-        return -1;
-    }
 
-    models.User.findAll({
-        where: {
-            encryptedPassword: sig
-        }
-    }).then(function (result) {
-        if (result.length == 0) { // sig 错误
-            res.json({
-                "status": 400,
-                "msg": '用户不存在'
-            });
-        }
-        else {
-            var userId = result[0].dataValues.id;
-            var list = [];
-            async.each(svgList, function (item, callback) {
-                var svgName = decodeURIComponent(item);
+        if (user) {
+            for (let value of svgList) {
+                let svgName = decodeURIComponent(value);
                 // 确定上传图标是否已经存在,而且必须是 online 版本
-                models.Icon.findAll({
+                let icon = await models.Icon.findOne({
                     where: {
-                        UserId: userId,
+                        UserId: user.id,
                         name: svgName,
                         projectId: projectId,
                         online: true
                     }
-                }).then(function(icons) {
-                    // 已经存在,返回当前版本号,不存在,返回版本号为 0,方便后续覆盖
-                    list.push({
-                        id: icons.length == 1 ? icons[0].dataValues.id : -1,
-                        svgName: svgName,
-                        version: icons.length == 1 ? icons[0].dataValues.version : 0
-                    });
-                    callback();
                 });
-            }, function (err) {
-                if(err) {
-                    res.json({
-                        "status": 400,
-                        "msg": err
-                    });
-                } else {
-                    res.json({
-                        "status": 200,
-                        "msg": 'success',
-                        "list": list
-                    });
-                }
-            });
+                // 已经存在,返回当前版本号,不存在,返回版本号为 0,方便后续覆盖
+                list.push({
+                    id: icon ? icon.id : -1,
+                    svgName: svgName,
+                    version: icon ? icon.version : 0
+                });
+            }
+            msg = config.msg_type.SUCCESS;
+        } else {
+            msg = config.msg_type.USER_NOT_EXIST;
         }
+    }
+
+    res.json({
+        status,
+        msg,
+        list
     });
 });
 
@@ -371,9 +357,10 @@ router.post('/login', async (req, res, next) => {
     let params = req.body;
     let userName = params.username;
     let password = params.password;
-    let sig = params.sig;
-    let status = 200;
+    let signature = params.sig;
+    let status = HttpStatus.OK;
     let msg = '';
+    let sig = '';
 
     if (userName && password) {
         let user = await models.User.findOne({
@@ -383,32 +370,35 @@ router.post('/login', async (req, res, next) => {
         });
 
         if (user) {
-            if (util.hashCrypt(userName, password) == user.dataValues.encryptedPassword) {
-                req.session.user = user;
-                msg = '登录成功';
+            if (util.hashCrypt(userName, password) == user.encryptedPassword) {
+                msg = config.msg_type.LOGIN_SUC;
+                sig = user.encryptedPassword;
             } else {
-                msg = '密码错误';
+                msg = config.msg_type.PASSWORD_ERR;
             }
         } else {
-            msg = '用户不存在';
+            msg = config.msg_type.USER_NOT_EXIST;
         }
     }
-    else if(sig) {
-        let user = await models.User.findAll({
+    else if(signature) {
+        let user = await models.User.findOne({
             where: {
-                encryptedPassword: sig
+                encryptedPassword: signature
             }
         });
-
-        msg = user ? '登录成功' : '用户不存在';
+        msg = user ? config.msg_type.LOGIN_SUC : config.msg_type.USER_NOT_EXIST;
+        sig = user.encryptedPassword;
+        console.log('sig' + sig);
     }
     else {
-        msg = '参数错误';
+        status = HttpStatus.BAD_REQUEST;
+        msg = config.msg_type.PARAM_ERR;
     }
 
     res.json({
-        status: status,
-        msg: msg
+        status,
+        msg,
+        sig
     });
 });
 

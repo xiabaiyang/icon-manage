@@ -1,4 +1,10 @@
-var crypto = require('crypto');
+"use strict";
+
+const fs = require('fs-extra');
+const path = require('path');
+const _ = require('lodash');
+const crypto = require('crypto');
+const config = require('./config');
 
 // var privatePem = fs.readFileSync(path.join(__dirname, '..', 'config/production/rsa_private_key.pem'));
 // var publicPem = fs.readFileSync(path.join(__dirname, '..', 'config/production/rsa_public_key.pem'));
@@ -53,8 +59,64 @@ module.exports = {
      * @param next
      */
     asyncMiddleware (fn) {
-        fn => (...args) => fn(...args).catch(args[2]) {
-            // 异常处理
+        // fn => (...args) => fn(...args).catch(args[2]);
+    },
+    /**
+     *  从文件系统里重新获取文件
+     */
+    refresh: function () {
+        fs.readdirSync(path.join(__dirname, "config", config.env)).filter(function (file) {
+            return file.indexOf('.') !== 0;
+        }).forEach(function (file) {
+            if (file.slice(-5) === '.json') {
+                config[path.basename(file, ".json")] = fs.readJsonSync(path.join(__dirname, "config", config.env, file), {throws: false});
+            }
+        });
+    },
+    /**
+     * 根据 key 获取文件内容
+     * @param key
+     * @returns {tmp}
+     */
+    get: function (key) {
+        if (typeof key !== "string") {
+            return undefined;
+        }
+        let keys = key.split('.');
+        let tmp = config;
+        for (var i = 0; i < keys.length; i++) {
+            if (_.has(tmp, keys[i])) {
+                tmp = tmp[keys[i]];
+                if (i === keys.length - 1) {
+                    return tmp;
+                }
+            } else {
+                return undefined;
+            }
+        }
+    },
+    /**
+     * 根据 key 设置文件内容
+     * @param key
+     * @param value
+     * @returns {undefined}
+     */
+    set: function (key, value) {
+        if (typeof key !== "string") {
+            return undefined;
+        }
+        let keys = key.split('.');
+        let tmp = config;
+        for (var i = 0; i < keys.length; i++) {
+            if (_.has(tmp, keys[i])) {
+                if (i === keys.length - 1) {
+                    tmp[keys[i]] = value;
+                } else {
+                    tmp = tmp[keys[i]];
+                }
+            } else {
+                tmp[keys[i]] = {};
+            }
         }
     }
 };

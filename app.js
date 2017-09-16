@@ -10,13 +10,13 @@ var favicon = require('serve-favicon');
 var session = require('express-session'); // 创建 session 中间件
 var MySQLStore = require('express-mysql-session')(session); // 将 session 存在 mysql 中
 
-var config = require('./config');
+var util = require('./util');
 var options = {
-    host: config.get('database.host'),
-    port: config.get('database.port'),
-    user: config.get('database.user'),
-    password: config.get('database.password'),
-    database: config.get('database.database')
+    host: util.get('database.host'),
+    port: util.get('database.port'),
+    user: util.get('database.user'),
+    password: util.get('database.password'),
+    database: util.get('database.database')
 };
 
 var routes = require('./routes/index');
