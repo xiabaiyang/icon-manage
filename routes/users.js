@@ -78,276 +78,173 @@ router.post('/version_check', async (req, res, next) => {
 /**
  * 批量上传
  */
-router.post('/batch_upload', function (req, res) {
-    var sig = req.body.sig;
-    var svgList = JSON.parse(req.body.list);
-    var uploadFileNum = svgList.length;
-    var svgo = new SVGO();
+router.post('/batch_upload', async (req, res, next) => {
+    let sig = req.body.sig;
+    let svgList = JSON.parse(req.body.list);
+    let uploadFileNum = svgList.length;
+    let svgo = new SVGO();
+    let status = HttpStatus.OK;
+    let msg = '';
 
     if (!sig || !svgList) {
-        res.json({
-            "status": 400,
-            "msg": "缺少参数"
+        status = HttpStatus.BAD_REQUEST;
+        msg = config.msg_type.PARAM_ERR;
+    } else if (uploadFileNum < 1) {
+        status = HttpStatus.BAD_REQUEST;
+        msg = config.msg_type.FILE_NOT_EXIST;
+    } else {
+        let user = await models.User.findOne({
+            where: {
+                encryptedPassword: sig
+            }
         });
-        return -1;
-    }
 
-    if (uploadFileNum < 1) {
-        res.json({
-            "status": 400,
-            "msg": "没有选择要上传的文件"
-        });
-        return -1;
-    }
-
-    models.User.findAll({
-        where: {
-            encryptedPassword: sig
-        }
-    }).then(function (result) {
-        // 验证 sig
-        if (result.length == 0) { // sig 错误
-            var response = {
-                "status": 400,
-                "msg": '用户不存在'
-            };
-            res.json(response);
-        }
-        else {
-            var userId = result[0].dataValues.id;
-            async.each(svgList, function (svgItem, callback) {
+        if (!user) {
+            msg = config.msg_type.USER_NOT_EXIST;
+        } else {
+            let userId = user.id;
+            for (let svgItem of svgList) {
                 svgItem.name = decodeURIComponent(svgItem.name);
                 svgItem.content = decodeURIComponent(svgItem.content);
                 if (!svgItem.name || !svgItem.content || !svgItem.projectId) {
-                    callback('参数错误');
-                }
-                else {
+                    msg = config.msg_type.PARAM_ERR; // TODO: 如果某条数据的信息不全,需要做处理
+                } else {
                     // 服务器去数据库查该图标的所有版本
-                    models.Icon.findAll({
+                    let icons = await models.Icon.findAll({
                         where: {
                             name: svgItem.name,
                             projectId: svgItem.projectId
                         }
-                    }).then(function (icon) {
-                        if (icon.length != 0) {
-                            // 找到最新线上版本
-                            models.Icon.findOne({
-                                where: {
-                                    name: svgItem.name,
-                                    projectId: svgItem.projectId,
-                                    online: true
-                                }
-                            }).then(function (item) {
-                                // 之前有该图标,则旧版本先下线,再插入新版本
-                                models.Icon.update({ online: false }, {
-                                    where: {
-                                        name: icon[0].dataValues.name,
-                                        projectId: icon[0].dataValues.projectId
-                                    }
-                                }).then(function () {
-                                    svgo.optimize(svgItem.content, function (svg) {
-                                        models.Icon.create({
-                                            name: svgItem.name,
-                                            author: svgItem.author,
-                                            online: true, // 上传默认图标上线
-                                            content: svg.data,
-                                            projectId: svgItem.projectId,
-                                            UserId: userId,
-                                            remarks: svgItem.remarks,
-                                            version: item.dataValues.version + 1,
-                                            experienceVersion: false
-                                        }).then(function () {
-                                            callback();
-                                        });
-                                    });
-                                });
-                            });
-                        }
-                        else {
-                            // 之前没有该图标,直接插入
-                            svgo.optimize(svgItem.content, function (svg) {
-                                models.Icon.create({
-                                    name: svgItem.name,
-                                    author: svgItem.author,
-                                    online: true, // 上传默认图标上线
-                                    content: svg.data,
-                                    projectId: svgItem.projectId,
-                                    UserId: userId,
-                                    remarks: svgItem.remarks,
-                                    version: 1,
-                                    experienceVersion: false
-                                }).then(function () {
-                                    callback();
-                                });
-                            });
-                        }
                     });
-                }
-            }, function (err) {
-                if (err) {
-                    res.json({
-                        "status": 400,
-                        "msg": err
-                    });
-                }
-                else {
-                    res.json({
-                        "status": 200,
-                        "msg": 'success'
-                    });
-                }
-            });
-        }
-    });
-});
 
-// 旧版本的批量上传(废除)
-router.post('/upload', upload.array('image'), function (req, res) {
-    var sig = req.query.sig;
-    var author = req.query.author;
-    var uploadFileNum = req.files.length;
-    var fileOriginalName = [];
-    var svgo = new SVGO();
+                    if (icons.length > 0) {
+                        // 找到最新线上版本
+                        let icon = await models.Icon.findOne({
+                            where: {
+                                name: svgItem.name,
+                                projectId: svgItem.projectId,
+                                online: true
+                            }
+                        });
 
-    if (uploadFileNum < 1) {
-        res.json({
-            "status": 400,
-            "msg": "没有选择要上传的文件"
-        });
-        return -1;
-    }
+                        // 之前存在该图标,则旧版本先下线,再插入新版本
+                        await models.Icon.update({ online: false }, {
+                            where: {
+                                name: icon.name,
+                                projectId: icon.projectId
+                            }
+                        });
 
-    models.User.findAll({
-        where: {
-            encryptedPassword: sig
-        }
-    }).then(function (result) {
-        console.log('查询结果...' + result);
-        if (result.length == 0) { // sig 错误
-            var response = {
-                "status": 400,
-                "msg": 'sig 错误'
-            };
-            res.json(response);
-        }
-        else {
-            var userId = result[0].dataValues.id;
-            for (var i = 0; i < uploadFileNum; i++) {
-                var count = 0; // 存储文件计数用
-                (function (i) {
-                    fileOriginalName[i] = req.files[i].originalname;
-
-                    fs.readFile(req.files[i].path, 'utf8', function (err, data) {
-                        if (err) {
-                            res.json({
-                                "status": 500,
-                                "msg": '文件保存失败'
-                            });
-                        }
-                        svgo.optimize(data, function (result) {
+                        await svgo.optimize(svgItem.content, svg => {
                             models.Icon.create({
-                                name: fileOriginalName[i], 
-                                author: author,
-                                online: true,
-                                content: result.data,
-                                projectId: 1,
+                                name: svgItem.name,
+                                author: svgItem.author,
+                                online: true, // 上传默认图标上线
+                                content: svg.data,
+                                projectId: svgItem.projectId,
                                 UserId: userId,
-                                remarks: '',
-                                version: 1,
-                                experienceVersion: true
-                            }).then(function () {
-                                count++;
-
-                                if (count === uploadFileNum) {
-                                    res.json({
-                                        "status": 200,
-                                        "msg": 'success'
-                                    });
-                                }
+                                remarks: svgItem.remarks,
+                                version: icon.version + 1,
+                                experienceVersion: false
                             });
                         });
-                    });
-                })(i)
+                    }
+                    else {
+                        // 之前没有该图标,直接插入
+                        await svgo.optimize(svgItem.content, svg => {
+                            models.Icon.create({
+                                name: svgItem.name,
+                                author: svgItem.author,
+                                online: true, // 上传默认图标上线
+                                content: svg.data,
+                                projectId: svgItem.projectId,
+                                UserId: userId,
+                                remarks: svgItem.remarks,
+                                version: 1,
+                                experienceVersion: false
+                            });
+                        });
+                    }
+                }
             }
+            msg = config.msg_type.SUCCESS;
         }
+    }
+
+    res.json({
+        status,
+        msg
     });
 });
 
 /**
  * 获取预览版本的图标
  */
-router.post('/getFiles', function (req, res, next) {
-    models.Icon.findAll({
+router.post('/getFiles', async (req, res, next) => {
+    let files = [];
+    let icons = await models.Icon.findAll({
         attributes: ['name', 'content', 'author'],
         where: {
             experienceVersion: true
         }
-    })
-    .then(function (result) {
-        var files = [];
-        for (var item in result) {
-            files.push({
-                name: result[item].dataValues.name,
-                content: result[item].dataValues.content,
-                author: result[item].dataValues.author
-            });
-        }
-        res.json({
-            "status": 200,
-            "msg": 'success',
-            "data": files
+    });
+
+    for (let item of icons) {
+        files.push({
+            name: item.name,
+            content: item.content,
+            author: item.author
         });
+    }
+
+    res.json({
+        status: HttpStatus.OK,
+        msg: config.msg_type.SUCCESS,
+        data: files
     });
 });
 
 /**
  * 用户注册
  */
-router.post('/register', function (req, res, next) {
-    var params = req.body;
-    var userName = params.username;
-    var password = params.password;
-    var mail = params.mail;
+router.post('/register', async (req, res, next) => {
+    let params = req.body;
+    let userName = params.username;
+    let password = params.password;
+    let mail = params.mail;
+    let status = HttpStatus.OK;
+    let msg = '';
+    let sig = '';
 
-    /*
-    * 1. 第一次登录时,需要根据 userName 和 password 去更新 machineCode
-    * 2. 除第一次登录时,先利用 sig 解出 userName
-    * 3. 用户更换 machineCode 登录时,需要添加新记录
-    * */
     if (userName && password && mail) {
-        models.User.findAll({
+        let user = await models.User.findOne({
             where: {
-                userName: userName
-            }
-        }).then(function (result) {
-            if (result.length > 0) { // 用户已存在
-                res.json({
-                    "status": 400,
-                    "msg": '用户名已存在'
-                });
-            }
-            else { // 创建新用户
-                var encryptedPassword = util.hashCrypt(userName, password); // 加密的 password
-                models.User.create({
-                    userName: userName,
-                    encryptedPassword: encryptedPassword,
-                    mail: mail
-                }).then(function (user) {
-                    res.json({
-                        "status": 200,
-                        "sig": user.dataValues.encryptedPassword,
-                        "msg": 'succ'
-                    });
-                });
+                userName
             }
         });
+        if (user) {
+            msg = config.msg_type.USER_EXIST;
+        } else {
+            let encryptedPassword = util.hashCrypt(userName, password);
+            await models.User.create({
+                userName,
+                encryptedPassword,
+                mail
+            });
+            msg = config.msg_type.SUCCESS;
+            sig = encryptedPassword;
+        }
     }
     else {
-        res.json({
-            "status": 400,
-            "msg": 'params error'
-        });
+        status = HttpStatus.BAD_REQUEST;
+        msg = config.msg_type.PARAM_ERR;
     }
+
+    res.json({
+        status,
+        msg,
+        sig
+    });
 });
 
 /**
@@ -365,7 +262,7 @@ router.post('/login', async (req, res, next) => {
     if (userName && password) {
         let user = await models.User.findOne({
             where: {
-                userName: userName
+                userName
             }
         });
 
@@ -405,61 +302,71 @@ router.post('/login', async (req, res, next) => {
 /**
  * 新建项目
  */
-router.post('/createProject', function (req, res, next) {
-    var sig = req.body.sig;
-    var proName = req.body.projectname;
+router.post('/createProject', async (req, res, next) => {
+    let sig = req.body.sig;
+    let proName = req.body.projectname;
+    let status = HttpStatus.OK;
+    let msg = '';
+    let projectId = '';
+    let invitedKey = '';
 
     if (!sig || !proName) {
-        res.json({
-            "status": 400,
-            "msg": "缺少参数"
+        status = HttpStatus.BAD_REQUEST;
+        msg = config.msg_type.PARAM_ERR;
+    } else {
+        let user = await models.User.findOne({
+            where: {
+                encryptedPassword: sig
+            }
         });
-        return -1;
+
+        if (!user) {
+            msg = config.msg_type.USER_NOT_EXIST;
+        } else {
+            // 检查项目名是否已经存在
+            let oldProject = await models.Project.findOne({
+                where: {
+                    proName
+                }
+            });
+
+            if (oldProject) {
+                msg = config.msg_type.PROJECT_EXIST;
+            } else {
+                invitedKey = Math.random().toString(36).slice(2, 10).toUpperCase(); // 随机邀请码
+
+                let newProject = await models.Project.create({
+                    proName: proName,
+                    ownerId: user.id,
+                    ownerName: user.userName,
+                    invitedKey: invitedKey,
+                    online: true
+                });
+
+                // 创建项目后,自己自动加入该项目
+                await models.ProjectMember.create({
+                    ProjectId: newProject.id,
+                    UserId: user.id
+                });
+
+                msg = config.msg_type.SUCCESS;
+                projectId = newProject.id;
+            }
+        }
     }
 
-    models.User.findAll({
-        where: {
-            encryptedPassword: sig
-        }
-    }).then(function (result) {
-        if (result.length == 0) {
-            var response = {
-                "status": 400,
-                "msg": '用户不存在'
-            };
-            res.json(response);
-        }
-        else {
-            var userId = result[0].dataValues.id;
-            var invitedKey = Math.random().toString(36).slice(2, 10).toUpperCase(); // 随机邀请码
-            models.Project.create({
-                proName: proName,
-                ownerId: result[0].dataValues.id,
-                ownerName: result[0].dataValues.userName,
-                invitedKey: invitedKey,
-                online: true // 后续可能需要对项目进行判重
-            }).then(function (data) {
-                // 创建项目后,自己自动加入该项目
-                models.ProjectMember.create({
-                    ProjectId: data.dataValues.id,
-                    UserId: userId
-                }).then(function (result) {
-                    res.json({
-                        "status": 200,
-                        "msg": 'succ',
-                        "projectId": data.dataValues.id,
-                        "invitedKey": invitedKey
-                    });
-                });
-            });
-        }
+    res.json({
+        status,
+        msg,
+        projectId,
+        invitedKey
     });
 });
 
 /**
  * 删除项目
  */
-router.post('/deleteProject', function (req, res, next) {
+router.post('/deleteProject', async (req, res, next) => {
     var sig = req.body.sig;
     var proId = req.body.projectid;
 
