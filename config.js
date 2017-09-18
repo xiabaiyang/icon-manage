@@ -9,9 +9,11 @@ var config = {
         PARAM_ERR: '参数错误',
         PASSWORD_ERR: '密码错误',
         USER_EXIST: '用户名已存在',
-        PROJECT_EXIST: '项目名已存在',
         USER_NOT_EXIST: '用户名不存在',
-        FILE_NOT_EXIST: '没有选择要上传的文件'
+        PROJECT_EXIST: '项目名已存在',
+        PROJECT_NOT_EXIST: '项目名不存在',
+        FILE_NOT_EXIST: '没有选择要上传的文件',
+        NO_AUTH: '没有权限'
     }
 };
 

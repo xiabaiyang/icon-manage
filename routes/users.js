@@ -367,63 +367,51 @@ router.post('/createProject', async (req, res, next) => {
  * 删除项目
  */
 router.post('/deleteProject', async (req, res, next) => {
-    var sig = req.body.sig;
-    var proId = req.body.projectid;
+    let sig = req.body.sig;
+    let proId = req.body.projectid;
+    let status = HttpStatus.OK;
+    let msg = '';
 
     if (!sig || !proId) {
-        res.json({
-            "status": 400,
-            "msg": "缺少参数"
+        status = HttpStatus.BAD_REQUEST;
+        msg = config.msg_type.PARAM_ERR;
+    } else {
+        let user = await models.User.findOne({
+            where: {
+                encryptedPassword: sig
+            }
         });
-        return -1;
-    }
 
-    models.User.findAll({
-        where: {
-            encryptedPassword: sig
-        }
-    }).then(function (result) {
-        if (result.length == 0) {
-            res.json({
-                "status": 400,
-                "msg": '用户不存在'
-            });
-        }
-        else {
-            var userId = result[0].dataValues.id;
-            models.Project.findOne({
+        if (!user) {
+            msg = config.msg_type.USER_NOT_EXIST;
+        } else {
+            let project = await models.Project.findOne({
                 where: {
                     id: proId
                 }
-            }).then(function (result) {
-                if (result) {
-                    if (result.dataValues.ownerId != userId) {
-                        res.json({
-                            "status": 200,
-                            "msg": '用户没有权限删除该项目'
-                        });
-                    }
-                    else {
-                        models.Project.update({ online: false }, {
-                            where: {
-                                id: proId
-                            }
-                        }).then(function () {
-                            res.json({
-                                "status": 200,
-                                "msg": 'succ'
-                            });
-                        });
-                    }
-                }
-                else {
-                    res.json({
-                        "status": 200,
-                        "msg": '项目不存在'
-                    });
-                }
             });
+
+            if (!project) {
+                msg = config.msg_type.PROJECT_NOT_EXIST;
+            } else {
+                if (project.ownerId != user.id) {
+                    msg = config.msg_type.NO_AUTH;
+                } else {
+                    await models.Project.update({ online: false }, {
+                        where: {
+                            id: proId
+                        }
+                    });
+
+                    msg = config.msg_type.SUCCESS;
+                }
+            }
         }
+    }
+
+    res.json({
+        status,
+        msg
     });
 });
 
