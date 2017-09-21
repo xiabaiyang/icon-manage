@@ -107,7 +107,7 @@ router.post('/batch_upload', async (req, res, next) => {
                 svgItem.name = decodeURIComponent(svgItem.name);
                 svgItem.content = decodeURIComponent(svgItem.content);
                 if (!svgItem.name || !svgItem.content || !svgItem.projectId) {
-                    msg = config.msg_type.PARAM_ERR; // TODO: 如果某条数据的信息不全,需要做处理
+                    msg = config.msg_type.PARAM_ERR; // TODO: 如果某条数据的信息不全,统一异常处理
                 } else {
                     // 服务器去数据库查该图标的所有版本
                     let icons = await models.Icon.findAll({
@@ -392,6 +392,7 @@ router.post('/deleteProject', async (req, res, next) => {
             });
 
             if (!project) {
+                status = HttpStatus.BAD_REQUEST;
                 msg = config.msg_type.PROJECT_NOT_EXIST;
             } else {
                 if (project.ownerId != user.id) {
@@ -418,246 +419,207 @@ router.post('/deleteProject', async (req, res, next) => {
 /**
  * 图标下线
  */
-router.post('/deleteIcon', function (req, res, next) {
-    var sig = req.body.sig;
-    var iconIdList = JSON.parse(req.body.list); // [1, 2, 3]
+router.post('/deleteIcon', async (req, res, next) => {
+    let sig = req.body.sig;
+    let iconIdList = JSON.parse(req.body.list);
+    let status = HttpStatus.OK;
+    let msg = '';
+    let notExistIcons = [];
 
     if (!sig || !iconIdList) {
-        res.json({
-            "status": 400,
-            "msg": "缺少参数"
+        status = HttpStatus.BAD_REQUEST;
+        msg = config.msg_type.PARAM_ERR;
+    } else {
+        let user = await models.User.findOne({
+            where: {
+                encryptedPassword: sig
+            }
         });
-        return -1;
-    }
 
-    models.User.findAll({
-        where: {
-            encryptedPassword: sig
-        }
-    }).then(function (result) {
-        if (result.length == 0) {
-            res.json({
-                "status": 400,
-                "msg": '用户不存在'
-            });
-        }
-        else {
-            async.each(iconIdList, function (id, callback) {
-                models.Icon.findOne({
+        if (!user) {
+            msg = config.msg_type.USER_NOT_EXIST;
+        } else {
+            for (let id of iconIdList) {
+                let icon = await models.Icon.findOne({
                     where: {
-                        id: id
-                    }
-                }).then(function (result) {
-                    if (result) {
-                        models.Icon.update({ online: false }, {
-                            where: {
-                                id: id
-                            }
-                        }).then(function () {
-                            callback();
-                        });
-                    }
-                    else {
-                        callback('图标不存在');
+                        id
                     }
                 });
-            }, function (err) {
-                if (err) {
-                    res.json({
-                        "status": 400,
-                        "msg": err
+
+                if (icon) {
+                    await models.Icon.update({ online: false }, {
+                        where: {
+                            id
+                        }
                     });
                 }
                 else {
-                    res.json({
-                        "status": 200,
-                        "msg": 'success'
-                    });
+                    notExistIcons.push(id);
                 }
-            });
+            }
+            msg = config.msg_type.SUCCESS;
         }
+    }
+
+    res.json({
+        status,
+        msg,
+        notExistIcons
     });
 });
 
 /**
  * 项目添加成员
  */
-router.post('/addMember', function (req, res, next) {
-    var invitedKey = req.body.key; // 项目邀请码
-    var memberSig = req.body.sig; // 被添加人的标识
+router.post('/addMember', async (req, res, next) => {
+    let invitedKey = req.body.key;
+    let encryptedPassword = req.body.sig;
+    let status = HttpStatus.OK;
+    let msg = '';
 
-    if (!invitedKey || !memberSig) {
-        res.json({
-            "status": 400,
-            "msg": "缺少参数"
+    if (!invitedKey || !encryptedPassword) {
+        status = HttpStatus.BAD_REQUEST;
+        msg = config.msg_type.PARAM_ERR;
+    } else {
+        let project = await models.Project.findOne({
+            where: {
+                invitedKey
+            }
         });
-        return -1;
-    }
 
-    models.Project.findAll({
-        where: {
-            invitedKey: invitedKey
-        }
-    }).then(function (project) {
-        if (project.length == 0) {
-            var response = {
-                "status": 400,
-                "msg": '项目不存在'
-            };
-            res.json(response);
-        }
-        else {
-            var projectId = project[0].dataValues.id;
-            models.User.findAll({
+        if (!project) {
+            status = HttpStatus.BAD_REQUEST;
+            msg = config.msg_type.PROJECT_NOT_EXIST;
+        } else {
+            let user = await models.User.findOne({
                 where: {
-                    encryptedPassword: memberSig
-                }
-            }).then(function (user) {
-                if (user.length == 0) {
-                    var response = {
-                        "status": 400,
-                        "msg": '成员不存在'
-                    };
-                    res.json(response);
-                }
-                else {
-                    var userId = user[0].dataValues.id;
-
-                    // 确认成员是否已经加入该项目
-                    models.ProjectMember.findAll({
-                        where: {
-                            UserId: userId,
-                            ProjectId: projectId
-                        }
-                    }).then(function (user) {
-                        if (user.length != 0) {
-                            var response = {
-                                "status": 400,
-                                "msg": '成员已加入该项目'
-                            };
-                            res.json(response);
-                        }
-                        else {
-                            models.ProjectMember.create({
-                                ProjectId: projectId,
-                                UserId: userId
-                            }).then(function (result) {
-                                var response = {
-                                    "status": 200,
-                                    "msg": 'succ'
-                                };
-                                res.json(response);
-                            });
-                        }
-                    });
+                    encryptedPassword
                 }
             });
+
+            if (!user) {
+                status = HttpStatus.BAD_REQUEST;
+                msg = config.msg_type.USER_NOT_EXIST;
+            } else {
+                let member = await models.ProjectMember.findOne({
+                    where: {
+                        UserId: user.id,
+                        ProjectId: project.id
+                    }
+                });
+
+                if (member) {
+                    msg = config.msg_type.USER_HAD_JOINED;
+                } else {
+                    await models.ProjectMember.create({
+                        ProjectId: project.id,
+                        UserId: user.id
+                    });
+
+                    msg = config.msg_type.SUCCESS;
+                }
+            }
         }
+    }
+
+    res.json({
+        status,
+        msg
     });
 });
 
 /**
  * 查询项目
  */
-router.post('/queryProject', function (req, res, next) {
-    var sig = req.body.sig;
+router.post('/queryProject', async (req, res, next) => {
+    let sig = req.body.sig;
+    let status = HttpStatus.OK;
+    let msg = '';
+    let list = [];
 
     if (!sig) {
-        res.json({
-            "status": 400,
-            "msg": "缺少参数"
+        status = HttpStatus.BAD_REQUEST;
+        msg = config.msg_type.PARAM_ERR;
+    } else {
+        let user = await models.User.findOne({
+            where: {
+                encryptedPassword: sig
+            }
         });
-        return -1;
-    }
 
-    models.User.findAll({
-        where: {
-            encryptedPassword: sig
-        }
-    }).then(function (result) {
-        if (result.length == 0) {
-            var response = {
-                "status": 400,
-                "msg": '用户不存在'
-            };
-            res.json(response);
-        }
-        else {
-            var userId = result[0].dataValues.id;
+        if (!user) {
+            status = HttpStatus.BAD_REQUEST;
+            msg = config.msg_type.USER_NOT_EXIST;
+        } else {
             // 自己创建或者加入的项目,都需要可见
-            models.ProjectMember.findAll({
+            let myProjects = await models.ProjectMember.findAll({
                 where: {
-                    UserId: userId
-                }
-            }).then(function (projects) {
-                var list = []; // 返回列表
-                if (projects.length == 0) {
-                    res.json({
-                        "status": 200,
-                        "msg": 'succ',
-                        "list": list
-                    });
-                    return -1;
-                }
-                else {
-                    async.each(projects, function (projectItem, callback) {
-                        models.Project.findAll({
-                            where: {
-                                id: projectItem.dataValues.projectId,
-                                online: true
-                            }
-                        }).then(function (data) {
-                            if (data.length != 0) {
-                                data.forEach(function (value, index, array) {
-                                    var ownerId = value.dataValues.ownerId;
-                                    var projectId = value.dataValues.id;
-                                    var projectName = value.dataValues.proName;
-                                    var invitedKey = value.dataValues.invitedKey;
-                                    list.push({
-                                        projectId: projectId,
-                                        projectName: projectName,
-                                        invitedKey: invitedKey,
-                                        isOwner: userId == ownerId ? true : false
-                                    });
-                                });
-                            }
-                            callback();
-                        });
-                    }, function (err) {
-                        console.log(list);
-                        if (err) {
-                            res.json({
-                                "status": 400,
-                                "msg": err
-                            });
-                        }
-                        else {
-                            res.json({
-                                "status": 200,
-                                "msg": 'succ',
-                                "list": list
-                            });
-                        }
-                    });
+                    UserId: user.id
                 }
             });
+
+            if (myProjects.length > 0) {
+                for (let projectItem of myProjects) {
+                    let projectInfo = await models.Project.findOne({
+                        where: {
+                            id: projectItem.projectId,
+                            online: true
+                        }
+                    });
+
+                    if (projectInfo) {
+                        list.push({
+                            projectId: projectInfo.id,
+                            projectName: projectInfo.proName,
+                            invitedKey: projectInfo.invitedKey,
+                            isOwner: user.id == projectInfo.ownerId ? true : false
+                        });
+                    }
+                }
+            }
         }
+    }
+
+    res.json({
+        status,
+        msg,
+        list
     });
 });
 
 /**
  * 根据项目 id 查询 icon
  */
-router.post('/queryIconByProId', function (req, res, next) {
-    var projectId = req.body.projectid;
-    var sig = req.body.sig;
+router.post('/queryIconByProId', async (req, res, next) => {
+    let projectId = req.body.projectid;
+    let sig = req.body.sig;
+    let status = HttpStatus.OK;
+    let msg = '';
+    let list = [];
 
     if (!projectId || !sig) {
-        res.json({
-            "status": 400,
-            "msg": "缺少参数"
+        status = HttpStatus.BAD_REQUEST;
+        msg = config.msg_type.PARAM_ERR;
+    } else {
+        let user = await models.User.findOne({
+            where: {
+                encryptedPassword: sig
+            }
         });
-        return -1;
+
+        if (!user) {
+            status = HttpStatus.BAD_REQUEST;
+            msg = config.msg_type.USER_NOT_EXIST;
+        } else {
+            let icons = await models.Icon.findAll({
+                where: {
+                    projectId: projectId,
+                    online: true,
+                    experienceVersion: false
+                }
+            })
+        }
+
     }
 
     // sig 验证
