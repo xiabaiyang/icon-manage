@@ -28,12 +28,12 @@ router.post('/version_check', async (req, res, next) => {
     let reqParams = req.body;
     let sig = reqParams.sig;
     let projectId = reqParams.projectid;
-    let svgList = JSON.parse(reqParams.list);
+    let svgNameList = JSON.parse(reqParams.list);
     let status = HttpStatus.OK;
     let msg = '';
     let list = [];
 
-    if (!sig || !svgList || !projectId) {
+    if (!sig || !svgNameList || !projectId) {
         status = HttpStatus.BAD_REQUEST;
         msg = config.msg_type.PARAM_ERR;
     } else {
@@ -44,7 +44,7 @@ router.post('/version_check', async (req, res, next) => {
         });
 
         if (user) {
-            for (let value of svgList) {
+            for (let value of svgNameList) {
                 let svgName = decodeURIComponent(value);
                 // 确定上传图标是否已经存在,而且必须是 online 版本
                 let icon = await models.Icon.findOne({
@@ -62,6 +62,7 @@ router.post('/version_check', async (req, res, next) => {
                     version: icon ? icon.version : 0
                 });
             }
+
             msg = config.msg_type.SUCCESS;
         } else {
             msg = config.msg_type.USER_NOT_EXIST;
@@ -86,88 +87,117 @@ router.post('/batch_upload', async (req, res, next) => {
     let status = HttpStatus.OK;
     let msg = '';
 
-    if (!sig || !svgList) {
-        status = HttpStatus.BAD_REQUEST;
-        msg = config.msg_type.PARAM_ERR;
-    } else if (uploadFileNum < 1) {
-        status = HttpStatus.BAD_REQUEST;
-        msg = config.msg_type.FILE_NOT_EXIST;
-    } else {
-        let user = await models.User.findOne({
-            where: {
-                encryptedPassword: sig
+    if (svgList) {
+        // 参数不对，统一不做处理
+        for (let svgItem of svgList) {
+            if (!svgItem.name || !svgItem.content || !svgItem.projectId) {
+                status = HttpStatus.BAD_REQUEST;
+                msg = config.msg_type.PARAM_ERR;
+                break;
             }
-        });
-
-        if (!user) {
-            msg = config.msg_type.USER_NOT_EXIST;
+        }
+    } else {
+        if (!sig || !svgList) {
+            status = HttpStatus.BAD_REQUEST;
+            msg = config.msg_type.PARAM_ERR;
+        } else if (uploadFileNum < 1) {
+            status = HttpStatus.BAD_REQUEST;
+            msg = config.msg_type.FILE_NOT_EXIST;
         } else {
-            let userId = user.id;
-            for (let svgItem of svgList) {
-                svgItem.name = decodeURIComponent(svgItem.name);
-                svgItem.content = decodeURIComponent(svgItem.content);
-                if (!svgItem.name || !svgItem.content || !svgItem.projectId) {
-                    msg = config.msg_type.PARAM_ERR; // TODO: 如果某条数据的信息不全,统一异常处理
-                } else {
-                    // 服务器去数据库查该图标的所有版本
-                    let icons = await models.Icon.findAll({
+            let user = await models.User.findOne({
+                where: {
+                    encryptedPassword: sig
+                }
+            });
+
+            if (!user) {
+                msg = config.msg_type.USER_NOT_EXIST;
+            } else {
+                let userId = user.id;
+
+                Promise.all(svgList.map(async (svg) => {
+                    svgItem.name = decodeURIComponent(svgItem.name);
+                    svgItem.content = decodeURIComponent(svgItem.content);
+
+                    return await models.Icon.findAll({
                         where: {
                             name: svgItem.name,
                             projectId: svgItem.projectId
                         }
                     });
+                })).then(values => {
+                    for (let valueItem of values) {
 
-                    if (icons.length > 0) {
-                        // 找到最新线上版本
-                        let icon = await models.Icon.findOne({
-                            where: {
-                                name: svgItem.name,
-                                projectId: svgItem.projectId,
-                                online: true
-                            }
-                        });
-
-                        // 之前存在该图标,则旧版本先下线,再插入新版本
-                        await models.Icon.update({ online: false }, {
-                            where: {
-                                name: icon.name,
-                                projectId: icon.projectId
-                            }
-                        });
-
-                        await svgo.optimize(svgItem.content, svg => {
-                            models.Icon.create({
-                                name: svgItem.name,
-                                author: svgItem.author,
-                                online: true, // 上传默认图标上线
-                                content: svg.data,
-                                projectId: svgItem.projectId,
-                                UserId: userId,
-                                remarks: svgItem.remarks,
-                                version: icon.version + 1,
-                                experienceVersion: false
-                            });
-                        });
                     }
-                    else {
-                        // 之前没有该图标,直接插入
-                        await svgo.optimize(svgItem.content, svg => {
-                            models.Icon.create({
+                });
+
+
+                for (let svgItem of svgList) {
+                    svgItem.name = decodeURIComponent(svgItem.name);
+                    svgItem.content = decodeURIComponent(svgItem.content);
+                    if (!svgItem.name || !svgItem.content || !svgItem.projectId) {
+                        msg = config.msg_type.PARAM_ERR;
+                    } else {
+                        // 服务器去数据库查该图标的所有版本
+                        let icons = await models.Icon.findAll({
+                            where: {
                                 name: svgItem.name,
-                                author: svgItem.author,
-                                online: true, // 上传默认图标上线
-                                content: svg.data,
-                                projectId: svgItem.projectId,
-                                UserId: userId,
-                                remarks: svgItem.remarks,
-                                version: 1,
-                                experienceVersion: false
-                            });
+                                projectId: svgItem.projectId
+                            }
                         });
+
+                        if (icons.length > 0) {
+                            // 找到最新线上版本
+                            let icon = await models.Icon.findOne({
+                                where: {
+                                    name: svgItem.name,
+                                    projectId: svgItem.projectId,
+                                    online: true
+                                }
+                            });
+
+                            // 之前存在该图标,则旧版本先下线,再插入新版本
+                            await models.Icon.update({ online: false }, {
+                                where: {
+                                    name: icon.name,
+                                    projectId: icon.projectId
+                                }
+                            });
+
+                            await svgo.optimize(svgItem.content, svg => {
+                                models.Icon.create({
+                                    name: svgItem.name,
+                                    author: svgItem.author,
+                                    online: true, // 上传默认图标上线
+                                    content: svg.data,
+                                    projectId: svgItem.projectId,
+                                    UserId: userId,
+                                    remarks: svgItem.remarks,
+                                    version: icon.version + 1,
+                                    experienceVersion: false
+                                });
+                            });
+                        }
+                        else {
+                            // 之前没有该图标,直接插入
+                            await svgo.optimize(svgItem.content, svg => {
+                                models.Icon.create({
+                                    name: svgItem.name,
+                                    author: svgItem.author,
+                                    online: true, // 上传默认图标上线
+                                    content: svg.data,
+                                    projectId: svgItem.projectId,
+                                    UserId: userId,
+                                    remarks: svgItem.remarks,
+                                    version: 1,
+                                    experienceVersion: false
+                                });
+                            });
+                        }
                     }
                 }
+                msg = config.msg_type.SUCCESS;
             }
-            msg = config.msg_type.SUCCESS;
         }
     }
 
@@ -559,23 +589,23 @@ router.post('/queryProject', async (req, res, next) => {
             });
 
             if (myProjects.length > 0) {
-                for (let projectItem of myProjects) {
-                    let projectInfo = await models.Project.findOne({
+                await Promise.all(myProjects.map(async (projectItem) =>
+                    await models.Project.findOne({
                         where: {
                             id: projectItem.projectId,
                             online: true
                         }
-                    });
-
-                    if (projectInfo) {
+                    })
+                )).then(values => {
+                    for (let valueItem of values) {
                         list.push({
-                            projectId: projectInfo.id,
-                            projectName: projectInfo.proName,
-                            invitedKey: projectInfo.invitedKey,
-                            isOwner: user.id == projectInfo.ownerId ? true : false
+                            projectId: valueItem.id,
+                            projectName: valueItem.proName,
+                            invitedKey: valueItem.invitedKey,
+                            isOwner: user.id == valueItem.ownerId ? true : false
                         });
                     }
-                }
+                });
             }
         }
     }
