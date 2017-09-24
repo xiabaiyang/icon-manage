@@ -4,6 +4,7 @@ var config = {
     PROJECT_DIR: __dirname,
     env: process.env.NODE_ENV,
     upload_html_dir: '/var/www/html/',
+    upload_zip_dir: './', // /var/www/html/iconZip/
     download_icon_dir: 'http://123.207.94.56/iconZip/',
     msg_type: {
         SUCCESS: 'success',
@@ -20,7 +21,9 @@ var config = {
         USER_NOT_JOIN: '用户暂未加入该项目',
         NO_ICON: '暂无图标',
         UNZIP_SUCC: '解压成功',
-        UNZIP_FAIL: '解压失败'
+        UNZIP_FAIL: '解压失败',
+        DELETE_FAIL: '删除失败',
+        DIR_NOT_EXIST: '文件夹不存在'
     }
 };
 

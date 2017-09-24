@@ -66,6 +66,7 @@ router.post('/version_check', async (req, res, next) => {
 
             msg = config.msg_type.SUCCESS;
         } else {
+            status = HttpStatus.BAD_REQUEST;
             msg = config.msg_type.USER_NOT_EXIST;
         }
     }
@@ -97,71 +98,61 @@ router.post('/batch_upload', async (req, res, next) => {
                 break;
             }
         }
+    }
+    if (!sig || !svgList) {
+        status = HttpStatus.BAD_REQUEST;
+        msg = config.msg_type.PARAM_ERR;
+    } else if (uploadFileNum < 1) {
+        status = HttpStatus.BAD_REQUEST;
+        msg = config.msg_type.FILE_NOT_EXIST;
     } else {
-        if (!sig || !svgList) {
+        let user = await models.User.findOne({
+            where: {
+                encryptedPassword: sig
+            }
+        });
+
+        if (!user) {
             status = HttpStatus.BAD_REQUEST;
-            msg = config.msg_type.PARAM_ERR;
-        } else if (uploadFileNum < 1) {
-            status = HttpStatus.BAD_REQUEST;
-            msg = config.msg_type.FILE_NOT_EXIST;
+            msg = config.msg_type.USER_NOT_EXIST;
         } else {
-            let user = await models.User.findOne({
-                where: {
-                    encryptedPassword: sig
-                }
-            });
-
-            if (!user) {
-                msg = config.msg_type.USER_NOT_EXIST;
-            } else {
-                let userId = user.id;
-
-                for (let svgItem of svgList) {
-                    svgItem.name = decodeURIComponent(svgItem.name);
-                    svgItem.content = decodeURIComponent(svgItem.content);
-
-                    // 服务器去数据库查该图标的所有版本
-                    let icons = await models.Icon.findAll({
+            let userId = user.id;
+            for (let svgItem of svgList) {
+                svgItem.name = decodeURIComponent(svgItem.name);
+                svgItem.content = decodeURIComponent(svgItem.content);
+                // 查询该图标是否有线上版本
+                let icon = await models.Icon.findOne({
+                    where: {
+                        name: svgItem.name,
+                        projectId: svgItem.projectId,
+                        online: true
+                    }
+                });
+                // 存在线上版本: 先下线目前线上版本,再插入新图标
+                // 不存在线上版本: 直接插入新图标
+                if (icon) {
+                    await models.Icon.update({ online: false }, {
                         where: {
-                            name: svgItem.name,
-                            projectId: svgItem.projectId
+                            name: icon.name,
+                            projectId: icon.projectId
                         }
                     });
-
-                    if (icons.length > 0) {
-                        // 找到最新线上版本
-                        let icon = await models.Icon.findOne({
-                            where: {
-                                name: svgItem.name,
-                                projectId: svgItem.projectId,
-                                online: true
-                            }
-                        });
-
-                        // 旧版本先下线,再插入新版本
-                        await models.Icon.update({ online: false }, {
-                            where: {
-                                name: icon.name,
-                                projectId: icon.projectId
-                            }
-                        });
-                    }
-                    await svgo.optimize(svgItem.content, svg => {
-                        models.Icon.create({
-                            name: svgItem.name,
-                            author: svgItem.author,
-                            online: true, // 上传默认图标上线
-                            content: svg.data,
-                            projectId: svgItem.projectId,
-                            UserId: userId,
-                            remarks: svgItem.remarks,
-                            version: icons.length > 0 ? icon.version + 1 : 1,
-                            experienceVersion: false
-                        });
-                    });
                 }
-                msg = config.msg_type.SUCCESS;
+                await svgo.optimize(svgItem.content, svg => {
+                    models.Icon.create({
+                        name: svgItem.name,
+                        author: svgItem.author,
+                        online: true, // 上传默认图标上线
+                        content: svg.data,
+                        projectId: svgItem.projectId,
+                        UserId: userId,
+                        remarks: svgItem.remarks,
+                        version: icon ? icon.version + 1 : 1,
+                        experienceVersion: false
+                    });
+                });
             }
+            msg = config.msg_type.SUCCESS;
         }
     }
 
@@ -265,21 +256,13 @@ router.post('/login', async (req, res, next) => {
                 msg = config.msg_type.LOGIN_SUC;
                 sig = user.encryptedPassword;
             } else {
+                status = HttpStatus.BAD_REQUEST;
                 msg = config.msg_type.PASSWORD_ERR;
             }
         } else {
+            status = HttpStatus.BAD_REQUEST;
             msg = config.msg_type.USER_NOT_EXIST;
         }
-    }
-    else if(signature) {
-        let user = await models.User.findOne({
-            where: {
-                encryptedPassword: signature
-            }
-        });
-        msg = user ? config.msg_type.LOGIN_SUC : config.msg_type.USER_NOT_EXIST;
-        sig = user.encryptedPassword;
-        console.log('sig' + sig);
     }
     else {
         status = HttpStatus.BAD_REQUEST;
@@ -315,6 +298,7 @@ router.post('/createProject', async (req, res, next) => {
         });
 
         if (!user) {
+            status = HttpStatus.BAD_REQUEST;
             msg = config.msg_type.USER_NOT_EXIST;
         } else {
             // 检查项目名是否已经存在
@@ -377,6 +361,7 @@ router.post('/deleteProject', async (req, res, next) => {
         });
 
         if (!user) {
+            status = HttpStatus.BAD_REQUEST;
             msg = config.msg_type.USER_NOT_EXIST;
         } else {
             let project = await models.Project.findOne({
@@ -431,6 +416,7 @@ router.post('/deleteIcon', async (req, res, next) => {
         });
 
         if (!user) {
+            status = HttpStatus.BAD_REQUEST;
             msg = config.msg_type.USER_NOT_EXIST;
         } else {
             for (let id of iconIdList) {
@@ -661,6 +647,7 @@ router.post('/queryIconBySig', async (req, res, next) => {
         });
 
         if (!user) {
+            status = HttpStatus.BAD_REQUEST;
             msg = config.msg_type.USER_NOT_EXIST;
         } else {
             let icons = await models.Icon.findAll({
@@ -715,6 +702,7 @@ router.post('/queryIconByName', async (req, res, next) => {
         });
 
         if (!user) {
+            status = HttpStatus.BAD_REQUEST;
             msg = config.msg_type.USER_NOT_EXIST;
         } else {
             let userId = user.id;
@@ -859,42 +847,40 @@ router.post('/uploadHtml', upload.single('image'), async (req, res , next) => {
 /**
  * 删除上传文件
  */
-router.post('/deleteHtml', function (req, res , next) {
-    var dirName = req.body.dirname;
-    var rootDir = '/var/www/html/';
+router.post('/deleteHtml', (req, res , next) => {
+    let dirName = req.body.dirname;
+    let uploadAddress = path.join(config.upload_html_dir, dirName);
+    let status = HttpStatus.OK;
+    let msg = '';
 
     if (!dirName) {
-        res.json({
-            "status": 400,
-            "msg": '参数错误'
+        status = HttpStatus.BAD_REQUEST;
+        msg = config.msg_type.PARAM_ERR;
+    } else {
+        fs.exists(uploadAddress, function (exists) {
+            if (exists) {
+                rimraf(uploadAddress, function (err) {
+                    if (err) {
+                        msg = config.msg_type.DELETE_FAIL;
+                        next(err);
+                    } else {
+                        msg = config.msg_type.SUCCESS;
+                    }
+                    res.json({
+                        status,
+                        msg
+                    });
+                });
+            } else {
+                status = HttpStatus.BAD_REQUEST;
+                msg = config.msg_type.DIR_NOT_EXIST;
+                res.json({
+                    status,
+                    msg
+                });
+            }
         });
-        return -1;
     }
-
-    fs.exists(rootDir + dirName, function (exists) {
-        if (exists) {
-            rimraf(rootDir + dirName, function (err) {
-                if (!err) {
-                    res.json({
-                        "status": 200,
-                        "msg": '删除成功'
-                    });
-                } else {
-                    console.log('err:' + err);
-                    res.json({
-                        "status": 500,
-                        "msg": '删除失败'
-                    });
-                }
-            });
-            console.log('end');
-        } else {
-            res.json({
-                "status": 400,
-                "msg": '文件夹不存在'
-            });
-        }
-    });
 });
 
 /**
@@ -919,6 +905,7 @@ router.post('/refreshKey', async (req, res, next) => {
         });
 
         if (!user) {
+            status = HttpStatus.BAD_REQUEST;
             msg = config.msg_type.USER_NOT_EXIST;
         } else {
             let newInvitedKey = Math.random().toString(36).slice(2, 10).toUpperCase(); // 随机邀请码
@@ -944,134 +931,94 @@ router.post('/refreshKey', async (req, res, next) => {
 /**
  * 跳转页面,下载 icon 的 zip 压缩包(包括 svg 和 png)
  */
-router.get('/createZip', function (req, res, next) {
-    var sig = req.query.sig;
-    var projectId = req.query.projectid;
-
-    var svgIds = JSON.parse(req.query.id);
-    var remark = req.query.remark || '无';
-    console.log('svgIds:' + svgIds);
-
-    var zipDir = '/var/www/html/iconZip/';
-    var svgZipName = Math.random().toString(36).slice(2, 8) + '.zip';
-    var pngZipName = Math.random().toString(36).slice(2, 8) + '.zip';
+router.get('/createZip', async (req, res, next) => {
+    let sig = req.query.sig;
+    let projectId = req.query.projectid;
+    let svgIds = JSON.parse(req.query.id);
+    let remark = req.query.remark || '无';
+    let zipDir = config.upload_zip_dir;
+    let svgZipName = Math.random().toString(36).slice(2, 8) + '.zip';
+    let pngZipName = Math.random().toString(36).slice(2, 8) + '.zip';
+    let status = HttpStatus.OK;
+    let msg = '';
 
     if (!sig || !svgIds) {
-        res.json({
-            "status": 400,
-            "msg": "缺少参数"
+        status = HttpStatus.BAD_REQUEST;
+        msg = config.msg_type.PARAM_ERR;
+    } else {
+        let user = await models.User.findOne({
+            where: {
+                encryptedPassword: sig
+            }
         });
-        return -1;
-    }
 
-    models.User.findAll({
-        where: {
-            encryptedPassword: sig
-        }
-    }).then(function(user) {
-        if (user.length == 0) { // 用户不存在
-            res.json({
-                "status": 400,
-                "msg": '用户不存在'
-            });
-        }
-        else {
-            var userId = user[0].dataValues.id;
-
-            models.ProjectMember.findOne({
+        if (!user) {
+            status = HttpStatus.BAD_REQUEST;
+            msg = config.msg_type.USER_NOT_EXIST;
+        } else {
+            let userId = user.id;
+            let projectMember = await models.ProjectMember.findOne({
                 where: {
                     UserId: userId,
                     ProjectId: projectId
                 }
-            }).then(function (result) {
-                if (result == null) {
-                    // 用户不在这个项目里
-                    res.json({
-                        "status": 200,
-                        "msg": '用户无法操作该项目'
-                    });
-                }
-                else {
-                    var svgZip = new AdmZip();
-                    var pngZip = new AdmZip();
-                    async.each(svgIds, function (id, callback) {
-                        console.log('id:' + id);
-                        models.Icon.findOne({
-                            where: {
-                                id: id
-                            }
-                        }).then(function (result) {
-                            // 图标不存在时, result 为 null
-                            if (result) {
-                                try {
-                                    var svgName = result.dataValues.name.indexOf('.svg') != -1 ? result.dataValues.name : result.dataValues.name + '.svg';
-                                    var pngName = result.dataValues.name.indexOf('.svg') != -1 ? result.dataValues.name.replace('.svg', '.png') : result.dataValues.name + '.png';
-                                    var svgBuff = new Buffer(result.dataValues.content);
-                                    console.log('svgName:' + svgName);
-                                    console.log('pngName:' + pngName);
-
-                                    async.series(
-                                        [
-                                            // 压缩 svg
-                                            function(cb) {
-                                                svgZip.addFile(svgName, svgBuff);
-                                                svgZip.writeZip(zipDir + svgZipName);
-                                                cb(null);
-                                            },
-                                            // 压缩 png
-                                            function(cb) {
-                                                // svg 转换成 png
-                                                svg2png(svgBuff)
-                                                    .then(function (buffer) {
-                                                        pngZip.addFile(pngName, buffer);
-                                                        pngZip.writeZip(zipDir + pngZipName);
-                                                        callback();
-                                                        cb(null);
-                                                    })
-                                                    .catch(function (err) {
-                                                        console.log('1');
-                                                        console.log(err);
-                                                        callback(err);
-                                                        cb(null);
-                                                    });
-                                            }
-                                        ],
-                                        function(err, results) {
-                                            console.log('2');
-                                            console.log(err);
-                                            // console.log(results);
-                                        }
-                                    );
-                                } catch (err) {
-                                    console.log('3');
-                                    console.log(err);
-                                    callback(err);
-                                }
-                            }
-                            else {
-                                console.log('id为' + id + '的图标不存在');
-                                callback('id为' + id + '的图标不存在');
-                            }
-                        });
-                    }, function (err) {
-                        if (err) {
-                            res.json({
-                                "status": 500,
-                                "msg": err
-                            });
-                        }
-                        else {
-                            res.json({
-                                status: 200,
-                                data: {
-                                    svgZipName: svgZipName,
-                                    pngZipName: pngZipName
-                                }
-                            });
-                        }
-                    });
-                }
             });
+
+            if (!projectMember) {
+                msg = config.msg_type.NO_AUTH;
+            } else {
+                let svgZip = new AdmZip();
+                let pngZip = new AdmZip();
+
+                await Promise.all(svgIds.map(async (id) =>
+                    await models.Icon.findOne({
+                        where: {
+                            id
+                        }
+                    })
+                )).then(async (values) => {
+                    let iconsExist = 1;
+                    // 验证是否每个 icon 都存在
+                    for (let icon of values) {
+                        if (!icon) {
+                            iconsExist = 0;
+                            break;
+                        }
+                    }
+                    if (!iconsExist) {
+                        status = HttpStatus.BAD_REQUEST;
+                        msg = config.msg_type.PARAM_ERR; // 是否需要返回不存在的某个 icon id?
+                    } else {
+                        for (let result of values) {
+                            let svgName = result.name.indexOf('.svg') != -1 ? result.name : result.name + '.svg';
+                            let pngName = result.name.indexOf('.svg') != -1 ? result.name.replace('.svg', '.png') : result.name + '.png';
+                            let svgBuff = new Buffer(result.content);
+                            // 压缩 svg
+                            await svgZip.addFile(svgName, svgBuff);
+                            await svgZip.writeZip(zipDir + svgZipName);
+                            // 压缩 png
+                            await svg2png(svgBuff)
+                                .then(async (buffer) => {
+                                    await pngZip.addFile(pngName, buffer);
+                                    await pngZip.writeZip(zipDir + pngZipName);
+                                })
+                                .catch(err => {
+                                    next(err);
+                                });
+                        }
+                        msg = config.msg_type.SUCCESS;
+                    }
+                });
+            }
+        }
+    }
+
+    res.json({
+        status,
+        msg,
+        data: {
+            svgZipName,
+            pngZipName
         }
     });
 });
